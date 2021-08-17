@@ -33,45 +33,45 @@
 #include <imgui_impl_vulkan.h>
 
 void Application::run() {
-    initWindow();
-    initVulkan();
-    initImGui();
+    init();
     mainLoop();
     cleanup();
 }
 
-void Application::initVulkan() {
-    vkSetup.initSetup(window);
+void Application::init() {
+    initWindow();
 
-    // scene data
+    vkSetup.initSetup(window);
+    createCommandPool(&renderCommandPool, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    createCommandPool(&imGuiCommandPool, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+
+    buildScene();
+
+    initVulkan();
+
+    initImGui();
+}
+
+void Application::buildScene() {
     camera = Camera({ 0.0f, 0.0f, 0.0f }, 2.0f, 10.0f);
+    
     model.loadModel(MODEL_PATH);
 
     lights[0] = { {5.0f, -5.0f, 0.0f, 0.0f}, {0.5f, 0.5f, 0.5f}, 40.0f }; // pos, colour, radius
 
     spotLight = SpotLight({ 5.0f, -5.0f, 0.0f }, 0.1f, 40.0f);
-
-    createCommandPool(&renderCommandPool, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-    createCommandPool(&imGuiCommandPool, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-
-    createDescriptorSetLayout();
-
-    swapChain.initSwapChain(&vkSetup, &model, &descriptorSetLayout);
-    frameBuffer.initFrameBuffer(&vkSetup, &swapChain, renderCommandPool);
-    gBuffer.createGBuffer(&vkSetup, &swapChain, &descriptorSetLayout, &model, renderCommandPool);
-    shadowMap.createShadowMap(&vkSetup, &descriptorSetLayout, &model,  renderCommandPool);
     
+    floor = Plane(20.0f, 20.0f);
+
+    skybox.createSkybox(&vkSetup, renderCommandPool);
+
     // textures
     const std::vector<Image>* textureImages = model.getMaterialTextureData(0);
     textures.resize(textureImages->size());
 
     for (size_t i = 0; i < textureImages->size(); i++) {
-        textures[i].createTexture(&vkSetup, renderCommandPool, textureImages->data()[i] );
+        textures[i].createTexture(&vkSetup, renderCommandPool, textureImages->data()[i]);
     }
-
-    skybox.createSkybox(&vkSetup, renderCommandPool);
-
-    floor = Plane(20.0f, 20.0f);
 
     // vertex buffer 
     std::vector<Model::Vertex>* modelVertexBuffer = model.getVertexBuffer(0);
@@ -82,9 +82,7 @@ void Application::initVulkan() {
         modelVertexBuffer->push_back(v);
     }
 
-    cube = Cube(2.0f, 2.0f, 2.0f);
-    
-    VulkanBuffer::createDeviceLocalBuffer(&vkSetup, renderCommandPool, 
+    VulkanBuffer::createDeviceLocalBuffer(&vkSetup, renderCommandPool,
         Buffer{ (unsigned char*)modelVertexBuffer->data(), modelVertexBuffer->size() * sizeof(Model::Vertex) }, // vertex data as buffer
         &vertexBuffer, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
@@ -96,9 +94,18 @@ void Application::initVulkan() {
         iBuffer->push_back(i + offset);
     }
 
-    VulkanBuffer::createDeviceLocalBuffer(&vkSetup, renderCommandPool, 
+    VulkanBuffer::createDeviceLocalBuffer(&vkSetup, renderCommandPool,
         Buffer{ (unsigned char*)iBuffer->data(), iBuffer->size() * sizeof(uint32_t) }, // index data as buffer
         &indexBuffer, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+}
+
+void Application::initVulkan() {
+    createDescriptorSetLayout();
+
+    swapChain.initSwapChain(&vkSetup, &model, &descriptorSetLayout);
+    frameBuffer.initFrameBuffer(&vkSetup, &swapChain, renderCommandPool);
+    gBuffer.createGBuffer(&vkSetup, &swapChain, &descriptorSetLayout, &model, renderCommandPool);
+    shadowMap.createShadowMap(&vkSetup, &descriptorSetLayout, &model,  renderCommandPool);
 
     createDescriptorPool();
     createDescriptorSets();
@@ -109,18 +116,17 @@ void Application::initVulkan() {
     
     imGuiCommandBuffers.resize(swapChain.images.size());
 
-    createCommandBuffers(static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data(), renderCommandPool);
-    createCommandBuffers(static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data(), renderCommandPool);
-    createCommandBuffers(static_cast<uint32_t>(shadowMapCommandBuffers.size()), shadowMapCommandBuffers.data(), renderCommandPool);
+    createCommandBuffers(static_cast<UI32>(renderCommandBuffers.size()), renderCommandBuffers.data(), renderCommandPool);
+    createCommandBuffers(static_cast<UI32>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data(), renderCommandPool);
 
-    createCommandBuffers(static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data(), imGuiCommandPool);
+    createCommandBuffers(static_cast<UI32>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data(), imGuiCommandPool);
 
     createSyncObjects();
 
     // record commands
     for (UI32 i = 0; i < swapChain.images.size(); i++) { 
         buildOffscreenCommandBuffer(i); // offscreen gbuffer commands
-        buildShadowMapCommandBuffer(offScreenCommandBuffers[i]); // final image composition
+        buildShadowMapCommandBuffer(offScreenCommandBuffers[i]);
         buildCompositionCommandBuffer(i); // final image composition
     }
 }
@@ -141,7 +147,6 @@ void Application::recreateVulkanData() {
 
     vkFreeCommandBuffers(vkSetup.device, renderCommandPool, static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data());
     vkFreeCommandBuffers(vkSetup.device, renderCommandPool, static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data());
-    //vkFreeCommandBuffers(vkSetup.device, renderCommandPool, static_cast<uint32_t>(shadowMapCommandBuffers.size()), shadowMapCommandBuffers.data());
 
     shadowMap.cleanupShadowMap();
     gBuffer.cleanupGBuffer();
@@ -565,11 +570,6 @@ void Application::buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer) {
     renderPassBeginInfo.renderArea.extent = { shadowMap.extent, shadowMap.extent };
     renderPassBeginInfo.clearValueCount = 1;
     renderPassBeginInfo.pClearValues = &clearValue;
-
-    // implicitly resets cmd buffer
-    //if (vkBeginCommandBuffer(cmdBuffer, &commandBufferBeginInfo) != VK_SUCCESS) {
-    //    throw std::runtime_error("failed to begin recording command buffer!");
-    //}
 
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 

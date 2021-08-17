@@ -42,9 +42,6 @@ void VulkanSetup::initSetup(GLFWwindow* theWindow) {
 
     // create the logical device for interfacing with the physical device
     createLogicalDevice();
-
-    // we got this far so signal that the setup was complete
-    setupComplete = true;
 }
 
 void VulkanSetup::cleanupSetup() {

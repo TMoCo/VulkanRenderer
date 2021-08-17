@@ -11,7 +11,7 @@ namespace utils {
         QueueFamilyIndices indices;
 
         // similar to physical device and extensions and layers....
-        uint32_t queueFamilyCount = 0;
+        UI32 queueFamilyCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
 
         // create a vector to store queue families
@@ -44,26 +44,26 @@ namespace utils {
     }
 
 
-    glm::vec2* toVec2(float* pVec) {
+    glm::vec2* toVec2(F32* pVec) {
         return reinterpret_cast<glm::vec2*>(pVec);
     }
 
-    glm::vec3* toVec3(float* pVec) {
+    glm::vec3* toVec3(F32* pVec) {
         return reinterpret_cast<glm::vec3*>(pVec);
     }
 
-    glm::vec4* toVec4(float* pVec) {
+    glm::vec4* toVec4(F32* pVec) {
         return reinterpret_cast<glm::vec4*>(pVec);
     }
 
-    uint32_t findMemoryType(const VkPhysicalDevice* physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+    UI32 findMemoryType(const VkPhysicalDevice* physicalDevice, UI32 typeFilter, VkMemoryPropertyFlags properties) {
         // find best type of memory
         VkPhysicalDeviceMemoryProperties memProperties;
         vkGetPhysicalDeviceMemoryProperties(*physicalDevice, &memProperties);
         // two arrays in the struct, memoryTypes and memoryHeaps. Heaps are distinct ressources like VRAM and swap space in RAM
         // types exist within these heaps
 
-        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+        for (UI32 i = 0; i < memProperties.memoryTypeCount; i++) {
             // we want a memory type that is suitable for the vertex buffer, but also able to write our vertex data to memory
             if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
                 return i;
@@ -137,7 +137,7 @@ namespace utils {
         VkCullModeFlags cullMode, 
         VkFrontFace frontFace,
         VkPipelineRasterizationStateCreateFlags flags,
-        float lineWidth) {
+        F32 lineWidth) {
         VkPipelineRasterizationStateCreateInfo info{};
         info.sType       = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
         info.polygonMode = polyMode;
@@ -149,7 +149,7 @@ namespace utils {
     }
 
     VkPipelineColorBlendStateCreateInfo initPipelineColorBlendStateCreateInfo(
-        uint32_t attachmentCount,
+        UI32 attachmentCount,
         const VkPipelineColorBlendAttachmentState* pAttachments) {
         VkPipelineColorBlendStateCreateInfo info{};
         info.sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -172,9 +172,9 @@ namespace utils {
     }
 
     VkPipelineViewportStateCreateInfo initPipelineViewportStateCreateInfo(
-        uint32_t viewportCount,
+        UI32 viewportCount,
         VkViewport* pViewports,
-        uint32_t scissorCount,
+        UI32 scissorCount,
         VkRect2D* pScissors,
         VkPipelineViewportStateCreateFlags flags) {
         VkPipelineViewportStateCreateInfo info{};
@@ -199,7 +199,7 @@ namespace utils {
     }
 
     VkPipelineLayoutCreateInfo initPipelineLayoutCreateInfo(
-        uint32_t layoutCount,
+        UI32 layoutCount,
         VkDescriptorSetLayout* layouts,
         VkPipelineLayoutCreateFlags flags) {
         VkPipelineLayoutCreateInfo info{};
@@ -211,9 +211,9 @@ namespace utils {
     }
 
     VkPipelineVertexInputStateCreateInfo initPipelineVertexInputStateCreateInfo(
-        uint32_t bindingCount,
+        UI32 bindingCount,
         VkVertexInputBindingDescription* pVertexBindingDescriptions,
-        uint32_t attributesCount,
+        UI32 attributesCount,
         VkVertexInputAttributeDescription* pVertexAttributesDescriptions,
         VkPipelineVertexInputStateCreateFlags flags) {
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
@@ -240,7 +240,7 @@ namespace utils {
 
     VkPipelineLayoutCreateInfo initPipelineLayoutCreateInfo(
         VkDescriptorSetLayout* pSetLayouts,
-        uint32_t count) {
+        UI32 count) {
         VkPipelineLayoutCreateInfo layoutInfo{};
         layoutInfo.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         layoutInfo.setLayoutCount = count;
@@ -287,7 +287,7 @@ namespace utils {
 
     // descriptor structs
     VkDescriptorSetLayoutBinding initDescriptorSetLayoutBinding(
-        uint32_t binding,
+        UI32 binding,
         VkDescriptorType type,
         VkPipelineStageFlags flags) {
         VkDescriptorSetLayoutBinding descSetLayoutBinding{};
@@ -300,7 +300,7 @@ namespace utils {
 
     VkDescriptorSetAllocateInfo initDescriptorSetAllocInfo(
         VkDescriptorPool pool,
-        uint32_t count,
+        UI32 count,
         VkDescriptorSetLayout* pDescSetLayouts) {
         VkDescriptorSetAllocateInfo descSetAllocInfo{};
         descSetAllocInfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -312,7 +312,7 @@ namespace utils {
 
     VkWriteDescriptorSet initWriteDescriptorSet(
         VkDescriptorSet dst,
-        uint32_t binding,
+        UI32 binding,
         VkDescriptorType type,
         VkDescriptorBufferInfo* pBufferInfo) {
         VkWriteDescriptorSet writeDescriptorSet{};
@@ -327,7 +327,7 @@ namespace utils {
 
     VkWriteDescriptorSet initWriteDescriptorSet(
         VkDescriptorSet dst,
-        uint32_t binding,
+        UI32 binding,
         VkDescriptorType type,
         VkDescriptorImageInfo* pImageInfo) {
         VkWriteDescriptorSet writeDescriptorSet{};
@@ -362,7 +362,7 @@ namespace utils {
         return viewCreateInfo;
     }
 
-    VkSamplerCreateInfo initSamplerCreateInfo(float maxAnisotropy) {
+    VkSamplerCreateInfo initSamplerCreateInfo(F32 maxAnisotropy) {
         VkSamplerCreateInfo samplerCreateInfo{};
         samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 

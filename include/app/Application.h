@@ -49,6 +49,12 @@ public:
     void run();
 
 private:
+    //-Initialise the app----------------------------------------------------------------------------------------//
+    void init();
+
+    //-Build the scene by setting its data-----------------------------------------------------------------------//
+    void buildScene();
+
     //-Initialise all our data for rendering---------------------------------------------------------------------//
     void initVulkan();
     void recreateVulkanData();
@@ -96,7 +102,7 @@ private:
     //-End of application cleanup--------------------------------------------------------------------------------//
     void cleanup();
 
-private:
+public:
     //-Members---------------------------------------------------------------------------------------------------//
     GLFWwindow* window;
 

@@ -7,7 +7,7 @@
 
 #include <common/types.h>
 
-#include <stdint.h> // uint32_t
+#include <stdint.h> // UI32
 
 #include <vector> // vector container
 #include <string> // string class
@@ -60,14 +60,13 @@ const std::vector<const char*> deviceExtensions = {
 
 const size_t MAX_FRAMES_IN_FLIGHT = 2;
 
-const uint32_t IMGUI_POOL_NUM = 1000;
+const UI32 IMGUI_POOL_NUM = 1000;
 
 namespace utils {
-
     //-Command queue family info --------------------------------------------------------------------------------//
     struct QueueFamilyIndices {
-        std::optional<uint32_t> graphicsFamily; // queue supporting drawing commands
-        std::optional<uint32_t> presentFamily; // queue for presenting image to vk surface 
+        std::optional<UI32> graphicsFamily; // queue supporting drawing commands
+        std::optional<UI32> presentFamily; // queue for presenting image to vk surface 
 
         inline bool isComplete() {
             // if device supports drawing cmds AND image can be presented to surface
@@ -78,12 +77,12 @@ namespace utils {
     };
 
     //-Type conversion-------------------------------------------------------------------------------------------//
-    glm::vec2* toVec2(float* pVec);
-    glm::vec3* toVec3(float* pVec);
-    glm::vec4* toVec4(float* pVec);
+    glm::vec2* toVec2(F32* pVec);
+    glm::vec3* toVec3(F32* pVec);
+    glm::vec4* toVec4(F32* pVec);
 
     //-Memory type-----------------------------------------------------------------------------------------------//
-    uint32_t findMemoryType(const VkPhysicalDevice* physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties);
+    UI32 findMemoryType(const VkPhysicalDevice* physicalDevice, UI32 typeFilter, VkMemoryPropertyFlags properties);
 
     //-Begin & end single use cmds-------------------------------------------------------------------------------//
     VkCommandBuffer beginSingleTimeCommands(const VkDevice* device, const VkCommandPool& commandPool);
@@ -97,9 +96,9 @@ namespace utils {
 
     // Pipeline structs
     VkPipelineVertexInputStateCreateInfo initPipelineVertexInputStateCreateInfo(
-        uint32_t bindingCount,
+        UI32 bindingCount,
         VkVertexInputBindingDescription* pVertexBindingDescriptions,
-        uint32_t attributesCount, 
+        UI32 attributesCount, 
         VkVertexInputAttributeDescription* pVertexAttributesDescriptions,
         VkPipelineVertexInputStateCreateFlags flags = 0);
 
@@ -118,10 +117,10 @@ namespace utils {
         VkCullModeFlags cullMode,
         VkFrontFace frontFace,
         VkPipelineRasterizationStateCreateFlags flags = 0,
-        float lineWidth = 1.0f);
+        F32 lineWidth = 1.0f);
 
     VkPipelineColorBlendStateCreateInfo initPipelineColorBlendStateCreateInfo(
-        uint32_t attachmentCount,
+        UI32 attachmentCount,
         const VkPipelineColorBlendAttachmentState* pAttachments);
 
     VkPipelineDepthStencilStateCreateInfo initPipelineDepthStencilStateCreateInfo(
@@ -130,9 +129,9 @@ namespace utils {
         VkCompareOp depthCompareOp);
 
     VkPipelineViewportStateCreateInfo initPipelineViewportStateCreateInfo(
-        uint32_t viewportCount,
+        UI32 viewportCount,
         VkViewport* pViewports,
-        uint32_t scissorCount,
+        UI32 scissorCount,
         VkRect2D* pScissors,
         VkPipelineViewportStateCreateFlags flags = 0);
 
@@ -141,13 +140,13 @@ namespace utils {
         VkPipelineMultisampleStateCreateFlags flags = 0);
 
     VkPipelineLayoutCreateInfo initPipelineLayoutCreateInfo(
-        uint32_t layoutCount,
+        UI32 layoutCount,
         VkDescriptorSetLayout* layouts,
         VkPipelineLayoutCreateFlags flags = 0);
 
     VkPipelineLayoutCreateInfo initPipelineLayoutCreateInfo(
         VkDescriptorSetLayout* pSetLayouts,
-        uint32_t count);
+        UI32 count);
 
     VkGraphicsPipelineCreateInfo initGraphicsPipelineCreateInfo(
         VkPipelineLayout layout,
@@ -160,29 +159,29 @@ namespace utils {
 
     VkPipelineDynamicStateCreateInfo initPipelineDynamicStateCreateInfo(
         VkDynamicState* pDynamicStates,
-        uint32_t dynamicStateCount,
+        UI32 dynamicStateCount,
         VkPipelineDynamicStateCreateFlags flags = 0);
 
     // Descriptor set structs
     VkDescriptorSetLayoutBinding initDescriptorSetLayoutBinding(
-        uint32_t binding,
+        UI32 binding,
         VkDescriptorType type,
         VkPipelineStageFlags flags = 0);
 
     VkDescriptorSetAllocateInfo initDescriptorSetAllocInfo(
         VkDescriptorPool pool,
-        uint32_t count,
+        UI32 count,
         VkDescriptorSetLayout* pDescSetLayouts);
 
     VkWriteDescriptorSet initWriteDescriptorSet(
         VkDescriptorSet dst,
-        uint32_t binding,
+        UI32 binding,
         VkDescriptorType type,
         VkDescriptorBufferInfo* pBufferInfo);
 
     VkWriteDescriptorSet initWriteDescriptorSet(
         VkDescriptorSet dst,
-        uint32_t binding,
+        UI32 binding,
         VkDescriptorType type,
         VkDescriptorImageInfo* pImageInfo);
 
@@ -194,7 +193,7 @@ namespace utils {
     VkImageViewCreateInfo initImageViewCreateInfo(VkImage image, VkImageViewType type, VkFormat format,
         VkComponentMapping componentMapping, VkImageSubresourceRange subresourceRange);
 
-    VkSamplerCreateInfo initSamplerCreateInfo(float maxAnisotropy = 1.0f);
+    VkSamplerCreateInfo initSamplerCreateInfo(F32 maxAnisotropy = 1.0f);
 }
 
 #endif // !UTILS_H

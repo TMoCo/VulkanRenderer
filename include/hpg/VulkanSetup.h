@@ -83,9 +83,8 @@ public:
     VkDevice         device;
     VkQueue          graphicsQueue;
     VkQueue          presentQueue;
-    VkPhysicalDeviceProperties deviceProperties;
 
-    bool setupComplete = false;
+    VkPhysicalDeviceProperties deviceProperties;
 };
 
 #endif // !VULKAN_SETUP_H
