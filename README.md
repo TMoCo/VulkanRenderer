@@ -18,3 +18,16 @@ Features I want to add:
 I realise this will take some time, my aim is to have a good basis for building a game by the start of next month. 
 Conceptually, these features are not difficult to understand, but adapting them to Vulkan does add quite a challenge. 
 Nevertheless, I am sure that as I continue to add to this project my understanding of this framework will grow, along with my grasp of graphics and games engineering in general.
+
+Libraries I am using:
+* ImGui
+* GLM
+* tinygltf and tinyobj
+* stbimage
+
+Developing on windows visual studio 2019, C++ 17.
+
+Links to helpful resources:
+[lear opengl](https://learnopengl.com/), [opengl tutorial](http://www.opengl-tutorial.org/). Super handy for understanding graphics concepts.
+[vulkan example](https://github.com/SaschaWillems/Vulkan). When vulkan just doesn't make sense to me, I look up these examples for guidance.
+[vulkan tutorial](https://vulkan-tutorial.com/Introduction). How I started using vulkan.
