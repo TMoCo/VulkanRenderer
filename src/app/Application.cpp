@@ -9,7 +9,8 @@
 #include <app/AppConstants.h>
 
 // include constants and utility
-#include <utils/Utils.h>
+#include <utils/utils.h>
+#include <utils/vkinit.h>
 #include <utils/Print.h>
 #include <utils/Assert.h>
 
@@ -66,7 +67,7 @@ void Application::buildScene() {
     skybox.createSkybox(&vkSetup, renderCommandPool);
 
     // textures
-    const std::vector<Image>* textureImages = model.getMaterialTextureData(0);
+    const std::vector<ImageData>* textureImages = model.getMaterialTextureData(0);
     textures.resize(textureImages->size());
 
     for (size_t i = 0; i < textureImages->size(); i++) {
@@ -100,15 +101,19 @@ void Application::buildScene() {
 }
 
 void Application::initVulkan() {
+    // swap chain independent
     createDescriptorSetLayout();
 
-    swapChain.initSwapChain(&vkSetup, &model, &descriptorSetLayout);
-    frameBuffer.initFrameBuffer(&vkSetup, &swapChain, renderCommandPool);
+    // swap chain
+    swapChain.createSwapChain(&vkSetup, &model, &descriptorSetLayout);
+
+    // swap chain dependent
+    frameBuffer.createFrameBuffer(&vkSetup, &swapChain, renderCommandPool);
     gBuffer.createGBuffer(&vkSetup, &swapChain, &descriptorSetLayout, &model, renderCommandPool);
     shadowMap.createShadowMap(&vkSetup, &descriptorSetLayout, &model,  renderCommandPool);
 
     createDescriptorPool();
-    createDescriptorSets();
+    createDescriptorSets(static_cast<UI32>(swapChain.images.size()));
 
     renderCommandBuffers.resize(swapChain.images.size());
     offScreenCommandBuffers.resize(swapChain.images.size());
@@ -132,7 +137,7 @@ void Application::initVulkan() {
 }
 
 void Application::recreateVulkanData() {
-    static int width = 0, height = 0;
+    static I32 width = 0, height = 0;
     glfwGetFramebufferSize(window, &width, &height);
 
     while (width == 0 || height == 0) {
@@ -154,16 +159,15 @@ void Application::recreateVulkanData() {
     swapChain.cleanupSwapChain();
 
     // create new swap chain etc...
-    swapChain.initSwapChain(&vkSetup, &model, &descriptorSetLayout);
-    frameBuffer.initFrameBuffer(&vkSetup, &swapChain, renderCommandPool);
+    swapChain.createSwapChain(&vkSetup, &model, &descriptorSetLayout);
+    frameBuffer.createFrameBuffer(&vkSetup, &swapChain, renderCommandPool);
     gBuffer.createGBuffer(&vkSetup, &swapChain, &descriptorSetLayout, &model, renderCommandPool);
     shadowMap.createShadowMap(&vkSetup, &descriptorSetLayout, &model, renderCommandPool);
 
-    createDescriptorSets();
+    createDescriptorSets(static_cast<UI32>(swapChain.images.size()));
 
     createCommandBuffers(static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data(), renderCommandPool);
     createCommandBuffers(static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data(), renderCommandPool);
-    createCommandBuffers(static_cast<uint32_t>(shadowMapCommandBuffers.size()), shadowMapCommandBuffers.data(), renderCommandPool);
 
     createCommandBuffers(static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data(), imGuiCommandPool);
 
@@ -257,17 +261,17 @@ void Application::createDescriptorSetLayout() {
 
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
         // binding 0: vertex shader uniform buffer 
-        utils::initDescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
+        vkinit::descriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
         // binding 1: model albedo texture / position texture
-        utils::initDescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+        vkinit::descriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
         // binding 2: model metallic roughness / normal texture
-        utils::initDescriptorSetLayoutBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+        vkinit::descriptorSetLayoutBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
         // binding 3: albedo texture
-        utils::initDescriptorSetLayoutBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+        vkinit::descriptorSetLayoutBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
         // binding 4: fragment shader uniform buffer 
-        utils::initDescriptorSetLayoutBinding(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
+        vkinit::descriptorSetLayoutBinding(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
         // binding 5: fragment shader shadow map sampler
-        utils::initDescriptorSetLayoutBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+        vkinit::descriptorSetLayoutBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
     };
 
     VkDescriptorSetLayoutCreateInfo layoutCreateInf{};
@@ -280,17 +284,17 @@ void Application::createDescriptorSetLayout() {
     }
 }
 
-void Application::createDescriptorSets() {
-    std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+void Application::createDescriptorSets(UI32 swapChainImages) {
+    std::vector<VkDescriptorSetLayout> layouts(swapChainImages, descriptorSetLayout);
 
-    std::vector<VkDescriptorSetLayout> layouts(swapChain.images.size(), descriptorSetLayout);
-
-    VkDescriptorSetAllocateInfo allocInfo = utils::initDescriptorSetAllocInfo(descriptorPool, 1, layouts.data());
+    VkDescriptorSetAllocateInfo allocInfo = vkinit::descriptorSetAllocInfo(descriptorPool, 1, layouts.data());
 
     // offscreen descriptor set
     if (vkAllocateDescriptorSets(vkSetup.device, &allocInfo, &offScreenDescriptorSet) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate descriptor sets!");
     }
+
+    std::vector<VkWriteDescriptorSet> writeDescriptorSets;
 
     // offscreen uniform
     VkDescriptorBufferInfo offScreenUboInf{};
@@ -308,11 +312,11 @@ void Application::createDescriptorSets() {
 
     writeDescriptorSets = {
         // binding 0: vertex shader uniform buffer 
-        utils::initWriteDescriptorSet(offScreenDescriptorSet, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &offScreenUboInf),
+        vkinit::writeDescriptorSet(offScreenDescriptorSet, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &offScreenUboInf),
         // binding 1: model albedo texture 
-        utils::initWriteDescriptorSet(offScreenDescriptorSet, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &offScreenTexDescriptors[0]),
+        vkinit::writeDescriptorSet(offScreenDescriptorSet, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &offScreenTexDescriptors[0]),
         // binding 2: model metallic roughness texture
-        utils::initWriteDescriptorSet(offScreenDescriptorSet, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &offScreenTexDescriptors[1])
+        vkinit::writeDescriptorSet(offScreenDescriptorSet, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &offScreenTexDescriptors[1])
     };
 
     vkUpdateDescriptorSets(vkSetup.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
@@ -336,9 +340,9 @@ void Application::createDescriptorSets() {
 
     writeDescriptorSets = {
         // binding 0: vertex shader uniform buffer 
-        utils::initWriteDescriptorSet(skyboxDescriptorSet, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &skyboxUboInf),
+        vkinit::writeDescriptorSet(skyboxDescriptorSet, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &skyboxUboInf),
         // binding 1: skybox texture 
-        utils::initWriteDescriptorSet(skyboxDescriptorSet, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &skyboxTexDescriptor)
+        vkinit::writeDescriptorSet(skyboxDescriptorSet, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &skyboxTexDescriptor)
     };
 
     vkUpdateDescriptorSets(vkSetup.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
@@ -356,7 +360,7 @@ void Application::createDescriptorSets() {
 
     writeDescriptorSets = {
         // binding 0: vertex shader uniform buffer 
-        utils::initWriteDescriptorSet(shadowMapDescriptorSet, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &shadowMapUboInf),
+        vkinit::writeDescriptorSet(shadowMapDescriptorSet, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &shadowMapUboInf),
     };
 
     vkUpdateDescriptorSets(vkSetup.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
@@ -400,15 +404,15 @@ void Application::createDescriptorSets() {
         // offscreen descriptor writes
         writeDescriptorSets = {
             // binding 1: position texture target 
-            utils::initWriteDescriptorSet(compositionDescriptorSets[i], 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorPosition),
+            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorPosition),
             // binding 2: normal texture target
-            utils::initWriteDescriptorSet(compositionDescriptorSets[i], 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorNormal),
+            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorNormal),
             // binding 3: albedo texture target
-            utils::initWriteDescriptorSet(compositionDescriptorSets[i], 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorAlbedo),
+            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorAlbedo),
             // binding 4: fragment shader uniform
-            utils::initWriteDescriptorSet(compositionDescriptorSets[i], 4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &compositionUboInf),
+            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &compositionUboInf),
             // binding 5: shadow map
-            utils::initWriteDescriptorSet(compositionDescriptorSets[i], 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorShadowMap),
+            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorShadowMap),
         };
 
         // update according to the configuration
@@ -445,7 +449,7 @@ void Application::createCommandBuffers(uint32_t count, VkCommandBuffer* commandB
 }
 
 void Application::buildCompositionCommandBuffer(UI32 cmdBufferIndex) {
-    VkCommandBufferBeginInfo commandBufferBeginInfo = utils::initCommandBufferBeginInfo();
+    VkCommandBufferBeginInfo commandBufferBeginInfo = vkinit::commandBufferBeginInfo();
 
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color           = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -479,7 +483,7 @@ void Application::buildCompositionCommandBuffer(UI32 cmdBufferIndex) {
 }
 
 void Application::buildGuiCommandBuffer(UI32 cmdBufferIndex) {
-    VkCommandBufferBeginInfo commandbufferInfo = utils::initCommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    VkCommandBufferBeginInfo commandbufferInfo = vkinit::commandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     if (vkBeginCommandBuffer(imGuiCommandBuffers[cmdBufferIndex], &commandbufferInfo) != VK_SUCCESS) {
         throw std::runtime_error("failed to begin recording command buffer!");
@@ -509,7 +513,7 @@ void Application::buildGuiCommandBuffer(UI32 cmdBufferIndex) {
 }
 
 void Application::buildOffscreenCommandBuffer(UI32 cmdBufferIndex) {
-    VkCommandBufferBeginInfo commandBufferBeginInfo = utils::initCommandBufferBeginInfo();
+    VkCommandBufferBeginInfo commandBufferBeginInfo = vkinit::commandBufferBeginInfo();
 
     // Clear values for all attachments written in the fragment shader
     std::array<VkClearValue, 4> clearValues{};
@@ -557,7 +561,7 @@ void Application::buildOffscreenCommandBuffer(UI32 cmdBufferIndex) {
 }
 
 void Application::buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer) {
-    VkCommandBufferBeginInfo commandBufferBeginInfo = utils::initCommandBufferBeginInfo();
+    VkCommandBufferBeginInfo commandBufferBeginInfo = vkinit::commandBufferBeginInfo();
 
     // Clear values for all attachments written in the fragment shader
     VkClearValue clearValue{};

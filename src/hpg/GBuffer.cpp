@@ -2,6 +2,7 @@
 #include <hpg/Shader.h>
 
 #include <utils/Assert.h>
+#include <utils/vkinit.h>
 
 #include <app/AppConstants.h>
 
@@ -77,7 +78,7 @@ void GBuffer::createAttachment(const std::string& name, VkFormat format, VkImage
 	if (aspectMask <= 0)
 		throw std::runtime_error("Invalid aspect mask!");
 
-	VkImageViewCreateInfo imageViewCreateInfo = utils::initImageViewCreateInfo(attachment->vulkanImage.image,
+	VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(attachment->vulkanImage.image,
 		VK_IMAGE_VIEW_TYPE_2D, format, {}, { aspectMask, 0, 1, 0, 1 });
 	attachment->imageView = VulkanImage::createImageView(vkSetup, imageViewCreateInfo);
 }
@@ -195,7 +196,7 @@ void GBuffer::createColourSampler() {
 }
 
 void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapChain* swapChain, Model* model) {
-	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = utils::initPipelineLayoutCreateInfo(descriptorSetLayout, 1);
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
 
 	if (vkCreatePipelineLayout(vkSetup->device, &pipelineLayoutCreateInfo, nullptr, &layout) != VK_SUCCESS) {
 		throw std::runtime_error("Could not create deferred pipeline layout!");
@@ -204,7 +205,7 @@ void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapCh
 	VkColorComponentFlags colBlendAttachFlag = 
 		VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	VkPipelineColorBlendAttachmentState colorBlendAttachment = 
-		utils::initPipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE);
+		vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE);
 
 	VkViewport viewport{ 0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f };
 	VkRect2D scissor{ { 0, 0 }, extent };
@@ -213,29 +214,29 @@ void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapCh
 	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateInfo =
-		utils::initPipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
+		vkinit::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
 
 	VkPipelineRasterizationStateCreateInfo rasterizerStateInfo =
-		utils::initPipelineRasterStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_FRONT_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+		vkinit::pipelineRasterStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_FRONT_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
 
 	VkPipelineColorBlendStateCreateInfo    colorBlendingStateInfo =
-		utils::initPipelineColorBlendStateCreateInfo(1, &colorBlendAttachment);
+		vkinit::pipelineColorBlendStateCreateInfo(1, &colorBlendAttachment);
 
 	VkPipelineDepthStencilStateCreateInfo  depthStencilStateInfo =
-		utils::initPipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
+		vkinit::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
 
 	VkPipelineViewportStateCreateInfo      viewportStateInfo =
-		utils::initPipelineViewportStateCreateInfo(1, &viewport, 1, &scissor);
+		vkinit::pipelineViewportStateCreateInfo(1, &viewport, 1, &scissor);
 
 	VkPipelineMultisampleStateCreateInfo   multisamplingStateInfo =
-		utils::initPipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
+		vkinit::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
 
 	VkPipelineLayoutCreateInfo             pipelineLayoutInfo =
-		utils::initPipelineLayoutCreateInfo(1, descriptorSetLayout);
+		vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
 	// shared between the offscreen and composition pipelines
 
 	VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-		utils::initGraphicsPipelineCreateInfo(layout, swapChain->renderPass); // composition pipeline uses swapchain render pass
+		vkinit::graphicsPipelineCreateInfo(layout, swapChain->renderPass, 0); // composition pipeline uses swapchain render pass
 
 	pipelineCreateInfo.stageCount          = static_cast<uint32_t>(shaderStages.size());
 	pipelineCreateInfo.pStages             = shaderStages.data();
@@ -249,13 +250,13 @@ void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapCh
 	// composition pipeline
 	vertShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(COMP_VERT_SHADER));
 	fragShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(COMP_FRAG_SHADER));
-	shaderStages[0]  = utils::initPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
-	shaderStages[1]  = utils::initPipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
+	shaderStages[0]  = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
+	shaderStages[1]  = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
 
 	rasterizerStateInfo.cullMode = VK_CULL_MODE_FRONT_BIT;
 
 	VkPipelineVertexInputStateCreateInfo emptyInputStateInfo = 
-		utils::initPipelineVertexInputStateCreateInfo(0, nullptr, 0, nullptr); // no vertex data input
+		vkinit::pipelineVertexInputStateCreateInfo(0, nullptr, 0, nullptr); // no vertex data input
 	pipelineCreateInfo.pVertexInputState = &emptyInputStateInfo;
 
 	if (vkCreateGraphicsPipelines(vkSetup->device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &deferredPipeline) != VK_SUCCESS) {
@@ -270,8 +271,8 @@ void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapCh
 
 	vertShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(OFF_VERT_SHADER));
 	fragShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(OFF_FRAG_SHADER));
-	shaderStages[0]  = utils::initPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
-	shaderStages[1]  = utils::initPipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
+	shaderStages[0]  = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
+	shaderStages[1]  = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
 
 	rasterizerStateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
 
@@ -279,14 +280,14 @@ void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapCh
 	auto attributeDescriptions = model->getAttributeDescriptions(0);
 
 	VkPipelineVertexInputStateCreateInfo   vertexInputStateInfo =
-		utils::initPipelineVertexInputStateCreateInfo(1, &bindingDescription,
+		vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription,
 			static_cast<uint32_t>(attributeDescriptions.size()), attributeDescriptions.data());
 	pipelineCreateInfo.pVertexInputState = &vertexInputStateInfo; // vertex input bindings / attributes from gltf model
 
 	std::array<VkPipelineColorBlendAttachmentState, 3> colorBlendAttachmentStates = {
-		utils::initPipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE),
-		utils::initPipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE),
-		utils::initPipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE)
+		vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE),
+		vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE),
+		vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE)
 	};
 
 	colorBlendingStateInfo.attachmentCount = static_cast<uint32_t>(colorBlendAttachmentStates.size());
@@ -302,13 +303,13 @@ void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapCh
 	// skybox pipeline
 	vertShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(SKY_VERT_SHADER));
 	fragShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(SKY_FRAG_SHADER));
-	shaderStages[0] = utils::initPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
-	shaderStages[1] = utils::initPipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
+	shaderStages[0] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
+	shaderStages[1] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
 
 	bindingDescription = { 0, sizeof(glm::vec3), VK_VERTEX_INPUT_RATE_VERTEX };
 	VkVertexInputAttributeDescription attributeDescription = { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 };
 
-	vertexInputStateInfo = utils::initPipelineVertexInputStateCreateInfo(1, &bindingDescription, 1, &attributeDescription);
+	vertexInputStateInfo = vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription, 1, &attributeDescription);
 	pipelineCreateInfo.pVertexInputState = &vertexInputStateInfo; // vertex input bindings / attributes from gltf model
 
 	if (vkCreateGraphicsPipelines(vkSetup->device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &skyboxPipeline) != VK_SUCCESS) {

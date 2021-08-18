@@ -69,7 +69,7 @@ private:
     //-Descriptor initialisation functions-----------------------------------------------------------------------//
     void createDescriptorSetLayout();
     void createDescriptorPool();
-    void createDescriptorSets();
+    void createDescriptorSets(UI32 swapChainImages);
 
     //-Update uniform buffer-------------------------------------------------------------------------------------//
     void updateUniformBuffers(uint32_t currentImage);

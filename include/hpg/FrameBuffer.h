@@ -18,7 +18,7 @@
 class FrameBuffer {
 public:
     //-Initialisation and cleanup-----------------------------------------//    
-    void initFrameBuffer(VulkanSetup* pVkSetup, const SwapChain* swapChain, const VkCommandPool& commandPool);
+    void createFrameBuffer(VulkanSetup* pVkSetup, const SwapChain* swapChain, const VkCommandPool& commandPool);
     void cleanupFrameBuffers();
 
 private:

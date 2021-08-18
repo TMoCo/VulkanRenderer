@@ -23,7 +23,7 @@
 class SwapChain {
 public:
     //-Initialisation and cleanup--------------------------------------------------------------------------------//    
-    void initSwapChain(VulkanSetup* pVkSetup, Model* model, VkDescriptorSetLayout* descriptorSetLayout);
+    void createSwapChain(VulkanSetup* pVkSetup, Model* model, VkDescriptorSetLayout* descriptorSetLayout);
     void cleanupSwapChain();
 
 private:
@@ -40,8 +40,6 @@ private:
     
     //-Pipelines-------------------------------------------------------------------------------------------------//  
     void createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout, Model* model);
-    void createDeferredPipeline();
-    void createCompositionPipeline();
 
 public:
     //-Members---------------------------------------------------------------------------------------------------//    

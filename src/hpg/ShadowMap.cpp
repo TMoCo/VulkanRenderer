@@ -1,5 +1,7 @@
 #include<app/AppConstants.h>
 
+#include <utils/vkinit.h>
+
 #include <hpg/ShadowMap.h>
 #include <hpg/Shader.h>
 
@@ -52,7 +54,7 @@ void ShadowMap::createAttachment(const VkCommandPool& cmdPool) {
 	VulkanImage::createImage(vkSetup, cmdPool, info);
 
 	// create the image view
-	VkImageViewCreateInfo imageViewCreateInfo = utils::initImageViewCreateInfo(vulkanImage.image,
+	VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(vulkanImage.image,
 		VK_IMAGE_VIEW_TYPE_2D, format, {}, { VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1 });
 
 	imageView = VulkanImage::createImageView(vkSetup, imageViewCreateInfo);
@@ -150,7 +152,7 @@ void ShadowMap::createShadowMapSampler() {
 }
 
 void ShadowMap::createShadowMapPipeline(VkDescriptorSetLayout* descriptorSetLayout, Model* model) {
-	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = utils::initPipelineLayoutCreateInfo(descriptorSetLayout, 1);
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
 
 	if (vkCreatePipelineLayout(vkSetup->device, &pipelineLayoutCreateInfo, nullptr, &layout) != VK_SUCCESS) {
 		throw std::runtime_error("Could not create shadow map pipeline layout!");
@@ -159,48 +161,48 @@ void ShadowMap::createShadowMapPipeline(VkDescriptorSetLayout* descriptorSetLayo
 	VkColorComponentFlags colBlendAttachFlag =
 		VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	VkPipelineColorBlendAttachmentState colorBlendAttachmentState =
-		utils::initPipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE);
+		vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE);
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo =
-		utils::initPipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
+		vkinit::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
 
 	VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo =
-		utils::initPipelineRasterStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+		vkinit::pipelineRasterStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
 	rasterizationStateCreateInfo.depthBiasEnable = VK_TRUE;
 
 	VkPipelineColorBlendStateCreateInfo    colorBlendStateCreateInfo =
-		utils::initPipelineColorBlendStateCreateInfo(0, &colorBlendAttachmentState);
+		vkinit::pipelineColorBlendStateCreateInfo(0, &colorBlendAttachmentState);
 
 	VkPipelineDepthStencilStateCreateInfo  depthStencilStateCreateInfo =
-		utils::initPipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
+		vkinit::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
 
 	VkPipelineViewportStateCreateInfo      viewportStateCreateInfo =
-		utils::initPipelineViewportStateCreateInfo(1, nullptr, 1, nullptr);
+		vkinit::pipelineViewportStateCreateInfo(1, nullptr, 1, nullptr);
 
 	VkPipelineMultisampleStateCreateInfo   multisampleStateCreateInfo =
-		utils::initPipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
+		vkinit::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
 
 	auto bindingDescription = model->getBindingDescriptions(0);
 	auto attributeDescriptions = model->getAttributeDescriptions(0);
 
 	VkPipelineVertexInputStateCreateInfo   vertexInputStateCreateInfo =
-		utils::initPipelineVertexInputStateCreateInfo(1, &bindingDescription,
+		vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription,
 			static_cast<uint32_t>(attributeDescriptions.size()), attributeDescriptions.data());
 
 	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
 
 	std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS };
-	VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = utils::initPipelineDynamicStateCreateInfo(
+	VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = vkinit::pipelineDynamicStateCreateInfo(
 		dynamicStateEnables.data(), static_cast<UI32>(dynamicStateEnables.size()), 0);
 
 	VkShaderModule vertShaderModule; // , fragShaderModule;
 	std::array<VkPipelineShaderStageCreateInfo, 1> shaderStages;
 	vertShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(SHADOWMAP_VERT_SHADER));
 	//fragShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(SHADOWMAP_FRAG_SHADER));
-	shaderStages[0] = utils::initPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
-	//shaderStages[1] = utils::initPipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
+	shaderStages[0] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
+	//shaderStages[1] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
 
-	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = utils::initGraphicsPipelineCreateInfo(layout, shadowMapRenderPass);
+	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = vkinit::graphicsPipelineCreateInfo(layout, shadowMapRenderPass, 0);
 	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
 	graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
 	graphicsPipelineCreateInfo.pColorBlendState    = &colorBlendStateCreateInfo;

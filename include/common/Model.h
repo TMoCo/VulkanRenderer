@@ -67,7 +67,7 @@ public:
     std::vector<uint32_t>* getIndexBuffer(uint32_t primitiveNum);
 
     //-Get material textures-------------------------------------------------------------------------------------//
-    const std::vector<Image>* getMaterialTextureData(uint32_t primitiveNum);
+    const std::vector<ImageData>* getMaterialTextureData(UI32 primitiveNum);
 
 private:
     //-Members---------------------------------------------------------------------------------------------------//
@@ -77,7 +77,7 @@ private:
 
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
-    std::vector<Image> textures;
+    std::vector<ImageData> textures;
 
     FileExtension ext;
 

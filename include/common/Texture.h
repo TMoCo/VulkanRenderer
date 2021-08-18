@@ -20,7 +20,7 @@
 class Texture {
 public:
     //-Initialisation and cleanup----------------------------------------//    
-    void createTexture(VulkanSetup* pVkSetup, const VkCommandPool& commandPool, const Image& imageData);
+    void createTexture(VulkanSetup* pVkSetup, const VkCommandPool& commandPool, const ImageData& imageData);
     void cleanupTexture();
 
 private:

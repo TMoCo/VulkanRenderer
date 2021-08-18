@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-using UI8 = unsigned char;
+using UC = unsigned char;
 
 using F32 = float;
 using F64 = double;

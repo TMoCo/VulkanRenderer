@@ -157,28 +157,28 @@ void VulkanImage::transitionImageLayout(const VulkanSetup* vkSetup, const Vulkan
     utils::endSingleTimeCommands(&vkSetup->device, &vkSetup->graphicsQueue, &commandBuffer, &transitionData.renderCommandPool);   
 }
 
-Image VulkanImage::loadImageFromFile(const std::string& path) {
-    Image image{};
+ImageData VulkanImage::loadImageFromFile(const std::string& path) {
+    ImageData imageData{};
 
-    int width, height, channels;
-    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
+    I32 width, height, channels;
+    UC* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
 
     if (!data) {
         throw std::runtime_error("could not load image!");
     }
 
     // allocate memory, make a copy, then delete original
-    image.imageData.data = (unsigned char*)malloc(width * height * channels * sizeof(unsigned char));
-    memcpy(image.imageData.data, data, width * height * channels);
+    imageData.pixels.data = (UC*)malloc(width * height * channels * sizeof(UC));
+    memcpy(imageData.pixels.data, data, width * height * channels);
     stbi_image_free(data);
 
-    image.width = width;
-    image.height = height;
-    image.imageData.size = image.width * image.height * channels * sizeof(unsigned char);
-    image.format = getImageFormat(channels);
+    imageData.width = width;
+    imageData.height = height;
+    imageData.pixels.size = imageData.width * imageData.height * channels * sizeof(UC);
+    imageData.format = getImageFormat(channels);
         
     // !!PIXELS NEED TO BE FREED!! do so when no longer in use at the end of application lifecycle
-    return image;
+    return imageData;
 }
 
 VkFormat VulkanImage::getImageFormat(int numChannels) {

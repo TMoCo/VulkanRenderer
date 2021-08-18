@@ -4,6 +4,8 @@
 
 #include <app/AppConstants.h>
 
+#include <utils/vkinit.h>
+
 #include <hpg/SwapChain.h>// include the class declaration
 #include <hpg/Shader.h>   // include the shader struct 
 #include <hpg/Image.h>    // image view create
@@ -13,7 +15,7 @@
 #include <stdexcept>
 
 
-void SwapChain::initSwapChain(VulkanSetup* pVkSetup, Model* model, VkDescriptorSetLayout* descriptorSetLayout) {
+void SwapChain::createSwapChain(VulkanSetup* pVkSetup, Model* model, VkDescriptorSetLayout* descriptorSetLayout) {
     // update the pointer to the setup data rather than passing as argument to functions
     vkSetup = pVkSetup;
     // create the swap chain
@@ -22,7 +24,7 @@ void SwapChain::initSwapChain(VulkanSetup* pVkSetup, Model* model, VkDescriptorS
     // then create the image views for the images created
     imageViews.resize(images.size());
     for (size_t i = 0; i < images.size(); i++) {
-        VkImageViewCreateInfo imageViewCreateInfo = utils::initImageViewCreateInfo(images[i],
+        VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(images[i],
             VK_IMAGE_VIEW_TYPE_2D, imageFormat, {}, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
         imageViews[i] = VulkanImage::createImageView(vkSetup, imageViewCreateInfo);
     }
@@ -368,32 +370,32 @@ void SwapChain::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout
     colorBlendAttachment.blendEnable = VK_FALSE;
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {
-        utils::initPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main"),
-        utils::initPipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main")
+        vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main"),
+        vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main")
     };
     VkPipelineVertexInputStateCreateInfo vertexInputInfo = 
-        utils::initPipelineVertexInputStateCreateInfo(1, &bindingDescription, 
+        vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription, 
             static_cast<uint32_t>(attributeDescriptions.size()), attributeDescriptions.data());
     VkPipelineInputAssemblyStateCreateInfo inputAssembly = 
-        utils::initPipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
+        vkinit::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
     VkPipelineViewportStateCreateInfo viewportState = 
-        utils::initPipelineViewportStateCreateInfo(1, &viewport, 1, &scissor);
+        vkinit::pipelineViewportStateCreateInfo(1, &viewport, 1, &scissor);
     VkPipelineRasterizationStateCreateInfo rasterizer = 
-        utils::initPipelineRasterStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);    
+        vkinit::pipelineRasterStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);    
     VkPipelineMultisampleStateCreateInfo multisampling = 
-        utils::initPipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
+        vkinit::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
     VkPipelineColorBlendStateCreateInfo colorBlending = 
-        utils::initPipelineColorBlendStateCreateInfo(1, &colorBlendAttachment);
+        vkinit::pipelineColorBlendStateCreateInfo(1, &colorBlendAttachment);
     VkPipelineDepthStencilStateCreateInfo depthStencil = 
-        utils::initPipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS);
+        vkinit::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS);
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = 
-        utils::initPipelineLayoutCreateInfo(1, descriptorSetLayout);
+        vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
 
     if (vkCreatePipelineLayout(vkSetup->device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create pipeline layout!");
     }
 
-    VkGraphicsPipelineCreateInfo pipelineInfo = utils::initGraphicsPipelineCreateInfo(pipelineLayout, renderPass);
+    VkGraphicsPipelineCreateInfo pipelineInfo = vkinit::graphicsPipelineCreateInfo(pipelineLayout, renderPass, 0);
 
     // fixed function pipeline
     pipelineInfo.pVertexInputState   = &vertexInputInfo;

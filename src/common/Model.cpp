@@ -329,7 +329,7 @@ std::vector<uint32_t>* Model::getIndexBuffer(uint32_t primitiveNum) {
     return &indices;
 }
 
-const std::vector<Image>* Model::getMaterialTextureData(uint32_t primitiveNum) {
+const std::vector<ImageData>* Model::getMaterialTextureData(UI32 primitiveNum) {
     tinygltf::Material material = model.materials[model.meshes[0].primitives[primitiveNum].material];
 
     m_assert((material.values.size() > 0) && (material.values.size() < 3), "Invalid number of textures in material (only support two)... ");
@@ -341,7 +341,11 @@ const std::vector<Image>* Model::getMaterialTextureData(uint32_t primitiveNum) {
         int texIdx = value.second.TextureIndex();
         tinygltf::Image* im = &model.images[texIdx];
         // image info
-        *texIter = { static_cast<uint32_t>(im->width), static_cast<uint32_t>(im->height), getImageFormat(texIdx), { im->image.data(), im->image.size() } };
+        *texIter = { 
+            static_cast<UI32>(im->width), static_cast<UI32>(im->height), // extents
+            getImageFormat(texIdx), // format
+            { im->image.data(), im->image.size() } // pixel buffer
+        };
         texIter++; // move on to next texture
     }
 

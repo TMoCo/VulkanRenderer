@@ -7,6 +7,7 @@
 #include <app/AppConstants.h>
 
 #include <utils/Print.h>
+#include <utils/vkinit.h>
 
 #include <hpg/Skybox.h>
 #include <hpg/Buffers.h>
@@ -43,7 +44,7 @@ void Skybox::cleanupSkybox() {
 
 void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
     // load the skybox data from the 6 images
-    Image image{};
+    ImageData imageData{};
     const char* faces[6] = { "Right.png", "Left.png", "Bottom.png", "Top.png", "Front.png", "Back.png" };
 
     // query the dimensions of the file
@@ -53,15 +54,15 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
     }
 
     // use these to assign the width and height of the whole image, and allocate an array of bytes accordingly
-    image.height = height;
-    image.width = width;
-    image.format = VulkanImage::getImageFormat(channels);
-    image.imageData.size = height * width * channels * 6; // 6 images of dimensions w x h with pixels of n channels
-    image.imageData.data = (unsigned char*)malloc(image.imageData.size);
+    imageData.height = height;
+    imageData.width = width;
+    imageData.format = VulkanImage::getImageFormat(channels);
+    imageData.pixels.size = height * width * channels * 6; // 6 images of dimensions w x h with pixels of n channels
+    imageData.pixels.data = (unsigned char*)malloc(imageData.pixels.size);
 
-    PRINT("size of array: %zi\n size of uc: %zi\n", image.imageData.size * sizeof(unsigned char), sizeof(unsigned char));
+    PRINT("size of array: %zi\n size of uc: %zi\n", imageData.pixels.size * sizeof(unsigned char), sizeof(unsigned char));
 
-    if (!image.imageData.data) {
+    if (!imageData.pixels.data) {
         throw std::runtime_error("Error, could not allocate memory!");
     }
 
@@ -75,7 +76,7 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
         if (!data) {
             throw std::runtime_error("Could not load desired image file!");
         }        
-        memcpy(image.imageData.data + offset, data, height * width * channels);
+        memcpy(imageData.pixels.data + offset, data, height * width * channels);
         stbi_image_free(data);
         offset += height * width * channels;
     }
@@ -83,7 +84,7 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
     VulkanBuffer stagingBuffer{};
 
     VulkanBuffer::CreateInfo createInfo{};
-    createInfo.size = image.imageData.size;
+    createInfo.size = imageData.pixels.size;
     createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     createInfo.properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     createInfo.pVulkanBuffer = &stagingBuffer;
@@ -91,15 +92,15 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
     VulkanBuffer::createBuffer(vkSetup, &createInfo);
 
     void* data;
-    vkMapMemory(vkSetup->device, stagingBuffer.memory, 0, image.imageData.size, 0, &data);
-    memcpy(data, image.imageData.data, image.imageData.size);
+    vkMapMemory(vkSetup->device, stagingBuffer.memory, 0, imageData.pixels.size, 0, &data);
+    memcpy(data, imageData.pixels.data, imageData.pixels.size);
     vkUnmapMemory(vkSetup->device, stagingBuffer.memory);
 
     // create the image and its memory
     VulkanImage::ImageCreateInfo imgCreateInfo{};
-    imgCreateInfo.width = image.width;
-    imgCreateInfo.height = image.height;
-    imgCreateInfo.format = image.format;
+    imgCreateInfo.width = imageData.width;
+    imgCreateInfo.height = imageData.height;
+    imgCreateInfo.format = imageData.format;
     imgCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imgCreateInfo.usage = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     imgCreateInfo.arrayLayers = 6;
@@ -123,7 +124,7 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
     VulkanImage::LayoutTransitionInfo transitionData{};
     transitionData.pVulkanImage = &skyboxImage;
     transitionData.renderCommandPool = commandPool;
-    transitionData.format = image.format;
+    transitionData.format = imageData.format;
     transitionData.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     transitionData.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     transitionData.arrayLayers = 6;
@@ -141,10 +142,10 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
         region.imageSubresource.baseArrayLayer = i;
         region.imageSubresource.layerCount = 1;
         region.imageSubresource.mipLevel = 0;
-        region.imageExtent = { image.width, image.height, 1 };
+        region.imageExtent = { imageData.width, imageData.height, 1 };
         regions.push_back(region);
         // increment offset into staging buffer
-        offset += image.width * image.height * channels;
+        offset += imageData.width * imageData.height * channels;
     }
 
     VulkanBuffer::copyBufferToImage(vkSetup, commandPool, stagingBuffer.buffer, skyboxImage.image, regions);
@@ -158,12 +159,12 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
     // cleanup the staging buffer and its memory
     stagingBuffer.cleanupBufferData(vkSetup->device);
     // cleanup image pixels still in host memory
-    free(image.imageData.data);
+    free(imageData.pixels.data);
 }
 
 void Skybox::createSkyboxImageView() {
     // image view for the cube image
-    VkImageViewCreateInfo imageViewCreateInfo = utils::initImageViewCreateInfo(skyboxImage.image,
+    VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(skyboxImage.image,
         VK_IMAGE_VIEW_TYPE_CUBE, skyboxImage.format,
         VkComponentMapping{ VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A },
         VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6 });
@@ -173,7 +174,7 @@ void Skybox::createSkyboxImageView() {
 void Skybox::createSkyboxSampler() {
     // image sampler
     VkSamplerCreateInfo samplerCreateInfo =
-        utils::initSamplerCreateInfo(vkSetup->deviceProperties.limits.maxSamplerAnisotropy);
+        vkinit::samplerCreateInfo(vkSetup->deviceProperties.limits.maxSamplerAnisotropy);
     samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerCreateInfo.addressModeV = samplerCreateInfo.addressModeU;
     samplerCreateInfo.addressModeW = samplerCreateInfo.addressModeV;

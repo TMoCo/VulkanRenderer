@@ -4,6 +4,8 @@
 
 #include <hpg/DepthResource.h>
 
+#include <utils/vkinit.h>
+
 // reporting and propagating exceptions
 #include <iostream> 
 #include <stdexcept>
@@ -31,7 +33,7 @@ void DepthResource::createDepthResource(VulkanSetup* pVkSetup, const VkExtent2D&
 
     VulkanImage::createImage(vkSetup, commandPool, info);
 
-    VkImageViewCreateInfo imageViewCreateInfo = utils::initImageViewCreateInfo(depthImage.image,
+    VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(depthImage.image,
         VK_IMAGE_VIEW_TYPE_2D, depthFormat, {}, { VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1 });
     depthImageView = VulkanImage::createImageView(vkSetup, imageViewCreateInfo);
 

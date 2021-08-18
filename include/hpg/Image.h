@@ -10,16 +10,18 @@
 #ifndef VULKAN_IMAGE_H
 #define VULKAN_IMAGE_H
 
+#include <common/types.h>
+
 #include <hpg/Buffers.h>
 
 #include <vulkan/vulkan_core.h>
 
 // POD struct for an image from file (.png, .jpeg, &c)
-struct Image {
-    uint32_t width;
-    uint32_t height;
+struct ImageData {
+    UI32 width;
+    UI32 height;
     VkFormat format;
-    Buffer imageData;
+    Buffer pixels;
 };
 
 class VulkanImage {
@@ -64,7 +66,7 @@ public:
     static void transitionImageLayout(const VulkanSetup* vkSetup, const LayoutTransitionInfo& transitionInfo);
 
     //-Image Loading from file--------------------------------------------//
-    static Image loadImageFromFile(const std::string& path);
+    static ImageData loadImageFromFile(const std::string& path);
 
     //-Helpers for image formats------------------------------------------//
     static VkFormat getImageFormat(int numChannels);
