@@ -11,7 +11,7 @@
 void GBuffer::createGBuffer(VulkanContext* pVkSetup, SwapChain* swapChain, VkDescriptorSetLayout* descriptorSetLayout, 
 	const VkCommandPool& cmdPool) {
 	vkSetup = pVkSetup;
-	extent = swapChain->extent; // get extent from swap chain
+	extent = swapChain->_extent; // get extent from swap chain
 
 	createAttachment("position", VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, cmdPool);
 	createAttachment("normal", VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, cmdPool);
@@ -28,7 +28,7 @@ void GBuffer::createGBuffer(VulkanContext* pVkSetup, SwapChain* swapChain, VkDes
 	Buffer::createUniformBuffer<GBuffer::OffScreenUbo>(vkSetup, 1, 
 		&offScreenUniform, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-	Buffer::createUniformBuffer<GBuffer::CompositionUBO>(vkSetup, swapChain->images.size(), 
+	Buffer::createUniformBuffer<GBuffer::CompositionUBO>(vkSetup, swapChain->_imageCount, 
 		&compositionUniforms, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 	createPipelines(descriptorSetLayout, swapChain);
@@ -238,7 +238,7 @@ void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapCh
 	// shared between the offscreen and composition pipelines
 
 	VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-		vkinit::graphicsPipelineCreateInfo(layout, swapChain->renderPass, 0); // composition pipeline uses swapchain render pass
+		vkinit::graphicsPipelineCreateInfo(layout, swapChain->_renderPass, 0); // composition pipeline uses swapchain render pass
 
 	pipelineCreateInfo.stageCount          = static_cast<uint32_t>(shaderStages.size());
 	pipelineCreateInfo.pStages             = shaderStages.data();

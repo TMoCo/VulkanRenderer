@@ -76,7 +76,6 @@ private:
     void updateUniformBuffers(uint32_t currentImage);
 
     //-Command buffer initialisation functions-------------------------------------------------------------------//
-    void createCommandPool(VkCommandPool* commandPool, VkCommandPoolCreateFlags flags);
     void createCommandBuffers(uint32_t count, VkCommandBuffer* commandBuffers, VkCommandPool& commandPool);
 
     //-Record command buffers for rendering (geom and gui)-------------------------------------------------------//
@@ -84,6 +83,9 @@ private:
     void buildGuiCommandBuffer(UI32 cmdBufferIndex);
     void buildOffscreenCommandBuffer(UI32 cmdBufferIndex);
     void buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer);
+
+    //-Pipelines-------------------------------------------------------------------------------------------------//  
+    void createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout);
 
     //-Window/Input Callbacks------------------------------------------------------------------------------------//
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
@@ -109,8 +111,6 @@ public:
 
     Renderer _renderer;
 
-    //VulkanContext vkSetup; // instance, device (logical, physical), ...
-    SwapChain swapChain; // sc images, pipelines, ...
     FrameBuffer frameBuffer;
     GBuffer gBuffer;
 
@@ -132,6 +132,11 @@ public:
 
     Plane floor;
     Cube cube;
+
+
+
+    VkPipelineLayout _fwdPipelineLayout;
+    VkPipeline       _fwdPipeline;
 
     VkDescriptorPool descriptorPool;
     VkDescriptorSetLayout descriptorSetLayout;

@@ -14,6 +14,8 @@
 #include <utils/Print.h>
 #include <utils/Assert.h>
 
+#include <hpg/Shader.h>
+
 // transformations
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // because OpenGL uses depth range -1.0-1.0 and Vulkan uses 0.0-1.0
@@ -103,30 +105,29 @@ void Application::initVulkan() {
     createDescriptorSetLayout();
 
     // swap chain
-    swapChain.createSwapChain(&_renderer._context, &descriptorSetLayout);
+    // swapChain.init(&_renderer._context);
 
     // swap chain dependent
-    frameBuffer.createFrameBuffer(&_renderer._context, &swapChain, _renderer._commandPools[kCmdPools::RENDER]);
-    gBuffer.createGBuffer(&_renderer._context, &swapChain, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
+    frameBuffer.createFrameBuffer(&_renderer._context, &_renderer._swapChain, _renderer._commandPools[kCmdPools::RENDER]);
+    gBuffer.createGBuffer(&_renderer._context, &_renderer._swapChain, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
     shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
 
     createDescriptorPool();
-    createDescriptorSets(static_cast<UI32>(swapChain.images.size()));
+    createDescriptorSets(_renderer._swapChain._imageCount);
 
-    renderCommandBuffers.resize(swapChain.images.size());
-    offScreenCommandBuffers.resize(swapChain.images.size());
-    
-    imGuiCommandBuffers.resize(swapChain.images.size());
+    renderCommandBuffers.resize(_renderer._swapChain._imageCount);
+    offScreenCommandBuffers.resize(_renderer._swapChain._imageCount);    
+    imGuiCommandBuffers.resize(_renderer._swapChain._imageCount);
 
-    createCommandBuffers(static_cast<UI32>(renderCommandBuffers.size()), renderCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
-    createCommandBuffers(static_cast<UI32>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
+    createCommandBuffers(_renderer._swapChain._imageCount, renderCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
+    createCommandBuffers(_renderer._swapChain._imageCount, offScreenCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
 
-    createCommandBuffers(static_cast<UI32>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data(), _renderer._commandPools[kCmdPools::GUI]);
+    createCommandBuffers(_renderer._swapChain._imageCount, imGuiCommandBuffers.data(), _renderer._commandPools[kCmdPools::GUI]);
 
     createSyncObjects();
 
     // record commands
-    for (UI32 i = 0; i < swapChain.images.size(); i++) { 
+    for (UI32 i = 0; i < _renderer._swapChain._imageCount; i++) {
         buildOffscreenCommandBuffer(i); // offscreen gbuffer commands
         buildShadowMapCommandBuffer(offScreenCommandBuffers[i]);
         buildCompositionCommandBuffer(i); // final image composition
@@ -153,29 +154,29 @@ void Application::recreateVulkanData() {
     shadowMap.cleanupShadowMap();
     gBuffer.cleanupGBuffer();
     frameBuffer.cleanupFrameBuffers();
-    swapChain.cleanupSwapChain();
+
+    _renderer.recreateSwapchain();
 
     // create new swap chain etc...
-    swapChain.createSwapChain(&_renderer._context, &descriptorSetLayout);
-    frameBuffer.createFrameBuffer(&_renderer._context, &swapChain, _renderer._commandPools[kCmdPools::RENDER]);
-    gBuffer.createGBuffer(&_renderer._context, &swapChain, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
+    frameBuffer.createFrameBuffer(&_renderer._context, &_renderer._swapChain, _renderer._commandPools[kCmdPools::RENDER]);
+    gBuffer.createGBuffer(&_renderer._context, &_renderer._swapChain, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
     shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
 
-    createDescriptorSets(static_cast<UI32>(swapChain.images.size()));
+    createDescriptorSets(_renderer._swapChain._imageCount);
 
-    createCommandBuffers(static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
-    createCommandBuffers(static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
+    createCommandBuffers(_renderer._swapChain._imageCount, renderCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
+    createCommandBuffers(_renderer._swapChain._imageCount, offScreenCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
 
-    createCommandBuffers(static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data(), _renderer._commandPools[kCmdPools::GUI]);
+    createCommandBuffers(_renderer._swapChain._imageCount, imGuiCommandBuffers.data(), _renderer._commandPools[kCmdPools::GUI]);
 
-    for (UI32 i = 0; i < swapChain.images.size(); i++) {
+    for (UI32 i = 0; i < _renderer._swapChain._imageCount; i++) {
         buildOffscreenCommandBuffer(i);
         buildCompositionCommandBuffer(i);
         buildShadowMapCommandBuffer(offScreenCommandBuffers[i]);
     }
 
     // update ImGui aswell
-    ImGui_ImplVulkan_SetMinImageCount(static_cast<uint32_t>(swapChain.images.size()));
+    ImGui_ImplVulkan_SetMinImageCount(_renderer._swapChain._imageCount);
 }
 
 void Application::initImGui() {
@@ -197,11 +198,11 @@ void Application::initImGui() {
     init_info.PipelineCache  = VK_NULL_HANDLE;
     init_info.DescriptorPool = descriptorPool;
     init_info.Allocator      = nullptr;
-    init_info.MinImageCount  = swapChain.supportDetails.capabilities.minImageCount + 1;
-    init_info.ImageCount     = static_cast<uint32_t>(swapChain.images.size());
+    init_info.MinImageCount  = _renderer._swapChain._supportDetails.capabilities.minImageCount + 1;
+    init_info.ImageCount     = _renderer._swapChain._imageCount;
 
     // the imgui render pass
-    ImGui_ImplVulkan_Init(&init_info, swapChain.imGuiRenderPass);
+    ImGui_ImplVulkan_Init(&init_info, _renderer._swapChain._guiRenderPass);
 
     uploadFonts();
 }
@@ -227,7 +228,7 @@ void Application::initWindow() {
 // Descriptors
 
 void Application::createDescriptorPool() {
-    uint32_t swapChainImageCount = static_cast<uint32_t>(swapChain.images.size());
+    uint32_t swapChainImageCount = _renderer._swapChain._imageCount;
     VkDescriptorPoolSize poolSizes[] = {
         { VK_DESCRIPTOR_TYPE_SAMPLER,                IMGUI_POOL_NUM },
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, IMGUI_POOL_NUM },
@@ -245,7 +246,7 @@ void Application::createDescriptorPool() {
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    poolInfo.maxSets       = IMGUI_POOL_NUM * static_cast<uint32_t>(swapChain.images.size());
+    poolInfo.maxSets       = IMGUI_POOL_NUM * _renderer._swapChain._imageCount;
     poolInfo.poolSizeCount = static_cast<uint32_t>(sizeof(poolSizes) / sizeof(VkDescriptorPoolSize));
     poolInfo.pPoolSizes    = poolSizes; // the descriptors
 
@@ -387,7 +388,7 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
     texDescriptorAlbedo.sampler = gBuffer.colourSampler;
 
     VkDescriptorImageInfo texDescriptorShadowMap{};
-    texDescriptorShadowMap.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    texDescriptorShadowMap.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
     texDescriptorShadowMap.imageView = shadowMap.imageView;
     texDescriptorShadowMap.sampler = shadowMap.depthSampler;
 
@@ -419,20 +420,6 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
 
 // Command buffers
 
-void Application::createCommandPool(VkCommandPool* commandPool, VkCommandPoolCreateFlags flags) {
-    utils::QueueFamilyIndices queueFamilyIndices = 
-        utils::QueueFamilyIndices::findQueueFamilies(_renderer._context.physicalDevice, _renderer._context.surface);
-
-    VkCommandPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value(); // the queue to submit to
-    poolInfo.flags            = flags;
-
-    if (vkCreateCommandPool(_renderer._context.device, &poolInfo, nullptr, commandPool) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create command pool!");
-    }
-}
-
 void Application::createCommandBuffers(uint32_t count, VkCommandBuffer* commandBuffers, VkCommandPool& commandPool) {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -454,10 +441,10 @@ void Application::buildCompositionCommandBuffer(UI32 cmdBufferIndex) {
 
     VkRenderPassBeginInfo renderPassBeginInfo{};
     renderPassBeginInfo.sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassBeginInfo.renderPass        = swapChain.renderPass;
+    renderPassBeginInfo.renderPass        = _renderer._swapChain._renderPass;
     renderPassBeginInfo.framebuffer       = frameBuffer.framebuffers[cmdBufferIndex];
     renderPassBeginInfo.renderArea.offset = { 0, 0 };
-    renderPassBeginInfo.renderArea.extent = swapChain.extent;
+    renderPassBeginInfo.renderArea.extent = _renderer._swapChain._extent;
     renderPassBeginInfo.clearValueCount   = static_cast<uint32_t>(clearValues.size());
     renderPassBeginInfo.pClearValues      = clearValues.data();
 
@@ -469,7 +456,7 @@ void Application::buildCompositionCommandBuffer(UI32 cmdBufferIndex) {
     vkCmdBeginRenderPass(renderCommandBuffers[cmdBufferIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(renderCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, gBuffer.deferredPipeline);
     vkCmdBindDescriptorSets(renderCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, 
-        swapChain.pipelineLayout, 0, 1, &compositionDescriptorSets[cmdBufferIndex], 0, nullptr);
+        gBuffer.layout, 0, 1, &compositionDescriptorSets[cmdBufferIndex], 0, nullptr);
     // draw a single triangle
     vkCmdDraw(renderCommandBuffers[cmdBufferIndex], 3, 1, 0, 0);
     vkCmdEndRenderPass(renderCommandBuffers[cmdBufferIndex]);
@@ -492,10 +479,10 @@ void Application::buildGuiCommandBuffer(UI32 cmdBufferIndex) {
     // begin the render pass
     VkRenderPassBeginInfo renderPassBeginInfo = {};
     renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassBeginInfo.renderPass               = swapChain.imGuiRenderPass;
+    renderPassBeginInfo.renderPass               = _renderer._swapChain._guiRenderPass;
     renderPassBeginInfo.framebuffer              = frameBuffer.imGuiFramebuffers[cmdBufferIndex];
-    renderPassBeginInfo.renderArea.extent.width  = swapChain.extent.width;
-    renderPassBeginInfo.renderArea.extent.height = swapChain.extent.height;
+    renderPassBeginInfo.renderArea.extent.width  = _renderer._swapChain._extent.width;
+    renderPassBeginInfo.renderArea.extent.height = _renderer._swapChain._extent.height;
     renderPassBeginInfo.clearValueCount          = 1;
     renderPassBeginInfo.pClearValues = &clearValue;
 
@@ -602,6 +589,72 @@ void Application::buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer) {
     }
 }
 
+
+
+void Application::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout) {
+    VkShaderModule vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(FWD_VERT_SHADER));
+    VkShaderModule fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(FWD_FRAG_SHADER));
+
+    auto bindingDescription = Model::getBindingDescriptions(0);
+    auto attributeDescriptions = Model::getAttributeDescriptions(0);
+
+    VkViewport viewport{ 0.0f, 0.0f, (F32)_renderer._swapChain._extent.width, (F32)_renderer._swapChain._extent.height, 0.0f, 1.0f };
+    VkRect2D scissor{ { 0, 0 }, _renderer._swapChain._extent };
+
+    VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+    colorBlendAttachment.colorWriteMask =
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    colorBlendAttachment.blendEnable = VK_FALSE;
+
+    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {
+        vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main"),
+        vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main")
+    };
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo =
+        vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription,
+            static_cast<uint32_t>(attributeDescriptions.size()), attributeDescriptions.data());
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly =
+        vkinit::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
+    VkPipelineViewportStateCreateInfo viewportState =
+        vkinit::pipelineViewportStateCreateInfo(1, &viewport, 1, &scissor);
+    VkPipelineRasterizationStateCreateInfo rasterizer =
+        vkinit::pipelineRasterStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+    VkPipelineMultisampleStateCreateInfo multisampling =
+        vkinit::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
+    VkPipelineColorBlendStateCreateInfo colorBlending =
+        vkinit::pipelineColorBlendStateCreateInfo(1, &colorBlendAttachment);
+    VkPipelineDepthStencilStateCreateInfo depthStencil =
+        vkinit::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS);
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo =
+        vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
+
+    if (vkCreatePipelineLayout(_renderer._context.device, &pipelineLayoutInfo, nullptr, &_fwdPipelineLayout) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create pipeline layout!");
+    }
+
+    VkGraphicsPipelineCreateInfo pipelineInfo = 
+        vkinit::graphicsPipelineCreateInfo(_fwdPipelineLayout, _renderer._swapChain._renderPass, 0);
+
+    // fixed function pipeline
+    pipelineInfo.pVertexInputState = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.pDepthStencilState = &depthStencil;
+    pipelineInfo.stageCount = static_cast<UI32>(shaderStages.size());
+    pipelineInfo.pStages = shaderStages.data();
+
+    if (vkCreateGraphicsPipelines(_renderer._context.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &_fwdPipeline) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create graphics pipeline!");
+    }
+
+    vkDestroyShaderModule(_renderer._context.device, fragShaderModule, nullptr);
+    vkDestroyShaderModule(_renderer._context.device, vertShaderModule, nullptr);
+}
+
+
 // Handling window resize events
 
 void Application::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -619,7 +672,7 @@ void Application::createSyncObjects() {
     offScreenSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
 
     inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-    imagesInFlight.resize(swapChain.images.size(), VK_NULL_HANDLE);
+    imagesInFlight.resize(_renderer._swapChain._imageCount, VK_NULL_HANDLE);
 
     VkSemaphoreCreateInfo semaphoreInfo{};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -687,7 +740,7 @@ void Application::drawFrame() {
     // previous frame finished will fence
     vkWaitForFences(_renderer._context.device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
-    VkResult result = vkAcquireNextImageKHR(_renderer._context.device, swapChain.swapChain, UINT64_MAX, 
+    VkResult result = vkAcquireNextImageKHR(_renderer._context.device, _renderer._swapChain._swapChain, UINT64_MAX,
         imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex); 
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -756,7 +809,7 @@ void Application::drawFrame() {
     presentInfo.pWaitSemaphores    = &renderFinishedSemaphores[currentFrame];
 
     presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains    = &swapChain.swapChain;
+    presentInfo.pSwapchains    = &_renderer._swapChain._swapChain;
     presentInfo.pImageIndices  = &imageIndex;
 
     // submit request to put image from the swap chain to the presentation queue
@@ -801,7 +854,7 @@ void Application::setGUI() {
 void Application::updateUniformBuffers(uint32_t currentImage) {
 
     // offscreen ubo
-    glm::mat4 proj = glm::perspective(glm::radians(45.0f), swapChain.extent.width / (float)swapChain.extent.height, 0.1f, 40.0f);
+    glm::mat4 proj = glm::perspective(glm::radians(45.0f), _renderer._swapChain._aspectRatio, 0.1f, 40.0f);
     proj[1][1] *= -1.0f; // y coordinates inverted, Vulkan origin top left vs OpenGL bottom left
 
     glm::mat4 model = glm::translate(glm::mat4(1.0f), translate);
@@ -944,7 +997,6 @@ void Application::cleanup() {
     // in the reverse order of their creation
     gBuffer.cleanupGBuffer();
     frameBuffer.cleanupFrameBuffers();
-    swapChain.cleanupSwapChain();
 
     // cleanup the descriptor pools and descriptor set layouts
     vkDestroyDescriptorPool(_renderer._context.device, descriptorPool, nullptr);

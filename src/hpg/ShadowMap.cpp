@@ -70,7 +70,7 @@ void ShadowMap::createShadowMapRenderPass() {
 	attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
 	VkAttachmentReference depthReference = { 0, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
 
@@ -103,7 +103,8 @@ void ShadowMap::createShadowMapRenderPass() {
 	renderPassCreateInfo.attachmentCount = 1;
 	renderPassCreateInfo.pSubpasses = &subpass;
 	renderPassCreateInfo.subpassCount = 1;
-	//renderPassCreateInfo.pDependencies = dependencies.data();
+	renderPassCreateInfo.dependencyCount = static_cast<UI32>(dependencies.size());
+	renderPassCreateInfo.pDependencies = dependencies.data();
 
 	if (vkCreateRenderPass(vkSetup->device, &renderPassCreateInfo, nullptr, &shadowMapRenderPass) != VK_SUCCESS) {
 		throw std::runtime_error("Could not create shadow map render pass");

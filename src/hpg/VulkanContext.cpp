@@ -283,15 +283,15 @@ void VulkanContext::pickPhysicalDevice() {
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
     // iterate over available physical devices and check that they are suitable
+    bool foundDevice = false;
     for (const auto& device : devices) {
-        if (isDeviceSuitable(device)) {
-            physicalDevice = device;
-            break;
-        }
+        physicalDevice = device;        
+        foundDevice = isDeviceSuitable(physicalDevice);
     }
 
+
     // if the physicalDevice handle is still null, then no suitable devices were found
-    if (physicalDevice == VK_NULL_HANDLE) {
+    if (!foundDevice) {
         throw std::runtime_error("failed to find a suitable GPU!");
     }
 
@@ -317,7 +317,7 @@ bool VulkanContext::isDeviceSuitable(VkPhysicalDevice device) {
     bool swapChainAdequate = false;
     if (extensionsSupported) { // if extension supported, in our case extension for the swap chain
         // find out more about the swap chain details
-        SwapChain::SupportDetails swapChainSupport = SwapChain::querySwapChainSupport(device, surface);
+        SwapChain::SupportDetails swapChainSupport = SwapChain::querySwapChainSupport(this);
         // at least one supported image format and presentation mode is sufficient for now
         swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
     }

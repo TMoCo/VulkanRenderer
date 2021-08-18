@@ -17,18 +17,21 @@
 #include <stdexcept>
 
 
-void SwapChain::createSwapChain(VulkanContext* pVkSetup, VkDescriptorSetLayout* descriptorSetLayout) {
+void SwapChain::init(VulkanContext* pVkContext) {
     // update the pointer to the setup data rather than passing as argument to functions
-    vkSetup = pVkSetup;
+    _vkContext = pVkContext;
     // create the swap chain
     createSwapChain();
 
+    // update aspect ratio 
+    _aspectRatio = (F32)_extent.width / (F32)_extent.height;
+
     // then create the image views for the images created
-    imageViews.resize(images.size());
-    for (size_t i = 0; i < images.size(); i++) {
-        VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(images[i],
-            VK_IMAGE_VIEW_TYPE_2D, imageFormat, {}, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
-        imageViews[i] = Image::createImageView(vkSetup, imageViewCreateInfo);
+    _imageViews.resize(_images.size());
+    for (size_t i = 0; i < _images.size(); i++) {
+        VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(_images[i],
+            VK_IMAGE_VIEW_TYPE_2D, _format, {}, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+        _imageViews[i] = Image::createImageView(_vkContext, imageViewCreateInfo);
     }
 
     // then the geometry render pass 
@@ -36,46 +39,45 @@ void SwapChain::createSwapChain(VulkanContext* pVkSetup, VkDescriptorSetLayout* 
 
     // and the ImGUI render pass
     createImGuiRenderPass();
-
-    // followed by the graphics pipeline
-    createForwardPipeline(descriptorSetLayout);
 }
 
-void SwapChain::cleanupSwapChain() {
+void SwapChain::cleanup() {
     // destroy pipeline and related data
-    vkDestroyPipeline(vkSetup->device, pipeline, nullptr);
-    vkDestroyPipelineLayout(vkSetup->device, pipelineLayout, nullptr);
+    vkDestroyPipeline(_vkContext->device, _pipeline, nullptr);
+    vkDestroyPipelineLayout(_vkContext->device, _pipelineLayout, nullptr);
 
     // destroy the render passes
-    vkDestroyRenderPass(vkSetup->device, renderPass, nullptr);
-    vkDestroyRenderPass(vkSetup->device, imGuiRenderPass, nullptr);
+    vkDestroyRenderPass(_vkContext->device, _renderPass, nullptr);
+    vkDestroyRenderPass(_vkContext->device, _guiRenderPass, nullptr);
 
     // loop over the image views and destroy them. NB we don't destroy the images because they are implicilty created
     // and destroyed by the swap chain
-    for (size_t i = 0; i < imageViews.size(); i++) {
-        vkDestroyImageView(vkSetup->device, imageViews[i], nullptr);
+    for (size_t i = 0; i < _imageViews.size(); i++) {
+        vkDestroyImageView(_vkContext->device, _imageViews[i], nullptr);
     }
 
     // destroy the swap chain proper
-    vkDestroySwapchainKHR(vkSetup->device, swapChain, nullptr);
+    vkDestroySwapchainKHR(_vkContext->device, _swapChain, nullptr);
 }
 
 void SwapChain::createSwapChain() {
-    supportDetails = querySwapChainSupport(vkSetup->physicalDevice, vkSetup->surface); // is sc supported
+    _supportDetails = querySwapChainSupport(_vkContext); // is sc supported
 
-    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(supportDetails.formats);
-    VkPresentModeKHR presentMode     = chooseSwapPresentMode(supportDetails.presentModes);
-    VkExtent2D newExtent             = chooseSwapExtent(supportDetails.capabilities);
+    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(_supportDetails.formats);
+    VkPresentModeKHR presentMode     = chooseSwapPresentMode(_supportDetails.presentModes);
+    VkExtent2D newExtent             = chooseSwapExtent(_supportDetails.capabilities);
 
-    uint32_t imageCount = supportDetails.capabilities.minImageCount + 1; // + 1 to avoid waiting
-    if (supportDetails.capabilities.maxImageCount > 0 && imageCount > supportDetails.capabilities.maxImageCount) {
-        imageCount = supportDetails.capabilities.maxImageCount;
+    _imageCount = _supportDetails.capabilities.minImageCount + 1; // + 1 to avoid waiting
+    if (_supportDetails.capabilities.maxImageCount > 0 && _imageCount > _supportDetails.capabilities.maxImageCount) {
+        _imageCount = _supportDetails.capabilities.maxImageCount;
     }
+
+    _images.resize(_imageCount);
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface          = vkSetup->surface; // glfw window
-    createInfo.minImageCount    = imageCount;
+    createInfo.surface          = _vkContext->surface; // glfw window
+    createInfo.minImageCount    = _imageCount;
     createInfo.imageFormat      = surfaceFormat.format;
     createInfo.imageColorSpace  = surfaceFormat.colorSpace;
     createInfo.imageExtent      = newExtent;
@@ -83,7 +85,7 @@ void SwapChain::createSwapChain() {
     createInfo.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
     // how to handle the sc images across multiple queue families (in case graphics queue is different to presentation queue)
-    utils::QueueFamilyIndices indices = utils::QueueFamilyIndices::findQueueFamilies(vkSetup->physicalDevice, vkSetup->surface);
+    utils::QueueFamilyIndices indices = utils::QueueFamilyIndices::findQueueFamilies(_vkContext->physicalDevice, _vkContext->surface);
     uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 
     if (indices.graphicsFamily != indices.presentFamily) {
@@ -96,24 +98,23 @@ void SwapChain::createSwapChain() {
     }
 
     // a certain transform to apply to the image
-    createInfo.preTransform   = supportDetails.capabilities.currentTransform;
+    createInfo.preTransform   = _supportDetails.capabilities.currentTransform;
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     createInfo.presentMode    = presentMode; // determined earlier
     createInfo.clipped        = VK_TRUE; // ignore obscured pixels
     createInfo.oldSwapchain   = VK_NULL_HANDLE;
 
-    if (vkCreateSwapchainKHR(vkSetup->device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
+    if (vkCreateSwapchainKHR(_vkContext->device, &createInfo, nullptr, &_swapChain) != VK_SUCCESS) {
         throw std::runtime_error("failed to create swap chain!");
     }
 
-    // get images
-    vkGetSwapchainImagesKHR(vkSetup->device, swapChain, &imageCount, nullptr);
-    images.resize(imageCount);
-    vkGetSwapchainImagesKHR(vkSetup->device, swapChain, &imageCount, images.data());
+    // specify desired num of images, then get pointers
+    vkGetSwapchainImagesKHR(_vkContext->device, _swapChain, &_imageCount, nullptr);
+    vkGetSwapchainImagesKHR(_vkContext->device, _swapChain, &_imageCount, _images.data());
 
     // save format and extent
-    imageFormat = surfaceFormat.format;
-    extent      = newExtent;
+    _format = surfaceFormat.format;
+    _extent = newExtent;
 }
 
 VkSurfaceFormatKHR SwapChain::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
@@ -167,13 +168,10 @@ VkExtent2D SwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
     else {
         // get the dimensions of the window
         int width, height;
-        glfwGetFramebufferSize(vkSetup->window, &width, &height);
+        glfwGetFramebufferSize(_vkContext->window, &width, &height);
 
         // prepare the struct with the height and width of the window
-        VkExtent2D actualExtent = {
-            static_cast<uint32_t>(width),
-            static_cast<uint32_t>(height)
-        };
+        VkExtent2D actualExtent = { static_cast<UI32>(width), static_cast<UI32>(height) };
 
         // clamp the values between allowed min and max extents by the surface
         actualExtent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, actualExtent.width));
@@ -185,7 +183,7 @@ VkExtent2D SwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
 
 void SwapChain::createRenderPass() {
     VkAttachmentDescription colorAttachment{};
-    colorAttachment.format         = imageFormat; // sc image format
+    colorAttachment.format         = _format; // sc image format
     colorAttachment.samples        = VK_SAMPLE_COUNT_1_BIT;
     colorAttachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
@@ -196,7 +194,7 @@ void SwapChain::createRenderPass() {
 
     // specify a depth attachment to the render pass
     VkAttachmentDescription depthAttachment{};
-    depthAttachment.format         = DepthResource::findDepthFormat(vkSetup); // same format as depth image
+    depthAttachment.format         = DepthResource::findDepthFormat(_vkContext); // same format as depth image
     depthAttachment.samples        = VK_SAMPLE_COUNT_1_BIT;
     depthAttachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depthAttachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -270,7 +268,7 @@ void SwapChain::createRenderPass() {
     std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+    renderPassInfo.attachmentCount = static_cast<UI32>(attachments.size());
     renderPassInfo.pAttachments    = attachments.data();
     renderPassInfo.subpassCount    = 1;
     renderPassInfo.pSubpasses      = &subpass; // associated supass
@@ -279,14 +277,14 @@ void SwapChain::createRenderPass() {
     renderPassInfo.pDependencies = &dependency;// dependencies.data();
 
     // explicitly create the renderpass
-    if (vkCreateRenderPass(vkSetup->device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+    if (vkCreateRenderPass(_vkContext->device, &renderPassInfo, nullptr, &_renderPass) != VK_SUCCESS) {
         throw std::runtime_error("failed to create render pass!");
     }
 }
 
 void SwapChain::createImGuiRenderPass() {
     VkAttachmentDescription attachment = {};
-    attachment.format         = imageFormat;
+    attachment.format         = _format;
     attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
     attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
@@ -321,98 +319,36 @@ void SwapChain::createImGuiRenderPass() {
     info.dependencyCount = 1;
     info.pDependencies   = &dependency;
 
-    if (vkCreateRenderPass(vkSetup->device, &info, nullptr, &imGuiRenderPass) != VK_SUCCESS) {
+    if (vkCreateRenderPass(_vkContext->device, &info, nullptr, &_guiRenderPass) != VK_SUCCESS) {
         throw std::runtime_error("Could not create Dear ImGui's render pass");
     }
 }
 
-void SwapChain::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout) {
-    VkShaderModule vertShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(FWD_VERT_SHADER));
-    VkShaderModule fragShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(FWD_FRAG_SHADER));
-
-    auto bindingDescription    = Model::getBindingDescriptions(0);
-    auto attributeDescriptions = Model::getAttributeDescriptions(0);
-
-    VkViewport viewport{ 0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f };
-    VkRect2D scissor{ { 0, 0 }, extent };
-
-    VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-    colorBlendAttachment.colorWriteMask = 
-        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment.blendEnable = VK_FALSE;
-
-    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {
-        vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main"),
-        vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main")
-    };
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo = 
-        vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription, 
-            static_cast<uint32_t>(attributeDescriptions.size()), attributeDescriptions.data());
-    VkPipelineInputAssemblyStateCreateInfo inputAssembly = 
-        vkinit::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
-    VkPipelineViewportStateCreateInfo viewportState = 
-        vkinit::pipelineViewportStateCreateInfo(1, &viewport, 1, &scissor);
-    VkPipelineRasterizationStateCreateInfo rasterizer = 
-        vkinit::pipelineRasterStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);    
-    VkPipelineMultisampleStateCreateInfo multisampling = 
-        vkinit::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
-    VkPipelineColorBlendStateCreateInfo colorBlending = 
-        vkinit::pipelineColorBlendStateCreateInfo(1, &colorBlendAttachment);
-    VkPipelineDepthStencilStateCreateInfo depthStencil = 
-        vkinit::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS);
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo = 
-        vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
-
-    if (vkCreatePipelineLayout(vkSetup->device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create pipeline layout!");
-    }
-
-    VkGraphicsPipelineCreateInfo pipelineInfo = vkinit::graphicsPipelineCreateInfo(pipelineLayout, renderPass, 0);
-
-    // fixed function pipeline
-    pipelineInfo.pVertexInputState   = &vertexInputInfo;
-    pipelineInfo.pInputAssemblyState = &inputAssembly;
-    pipelineInfo.pViewportState      = &viewportState;
-    pipelineInfo.pRasterizationState = &rasterizer;
-    pipelineInfo.pMultisampleState   = &multisampling;
-    pipelineInfo.pColorBlendState    = &colorBlending;
-    pipelineInfo.pDepthStencilState  = &depthStencil;
-    pipelineInfo.stageCount          = static_cast<uint32_t>(shaderStages.size());
-    pipelineInfo.pStages             = shaderStages.data();
-
-    if (vkCreateGraphicsPipelines(vkSetup->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create graphics pipeline!");
-    }
-
-    vkDestroyShaderModule(vkSetup->device, fragShaderModule, nullptr);
-    vkDestroyShaderModule(vkSetup->device, vertShaderModule, nullptr);
-}
-
-SwapChain::SupportDetails SwapChain::querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) {
+SwapChain::SupportDetails SwapChain::querySwapChainSupport(VulkanContext* pVkContext) {
     SwapChain::SupportDetails details;
     // query the surface capabilities and store in a VkSurfaceCapabilities struct
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities); // takes into account device and surface when determining capabilities
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(pVkContext->physicalDevice, pVkContext->surface, &details.capabilities); 
 
     // same as we have seen many times before
     uint32_t formatCount;
     // query the available formats, pass null ptr to just set the count
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(pVkContext->physicalDevice, pVkContext->surface, &formatCount, nullptr);
 
     // if there are formats
     if (formatCount != 0) {
         // then resize the vector accordingly
         details.formats.resize(formatCount);
         // and set details struct fromats vector with the data pointer
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
+        vkGetPhysicalDeviceSurfaceFormatsKHR(pVkContext->physicalDevice, pVkContext->surface, &formatCount, details.formats.data());
     }
 
     // exact same thing as format for presentation modes
     uint32_t presentModeCount;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(pVkContext->physicalDevice, pVkContext->surface, &presentModeCount, nullptr);
 
     if (presentModeCount != 0) {
         details.presentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
+        vkGetPhysicalDeviceSurfacePresentModesKHR(pVkContext->physicalDevice, pVkContext->surface, &presentModeCount, details.presentModes.data());
     }
 
     return details;

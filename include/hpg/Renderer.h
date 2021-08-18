@@ -6,6 +6,9 @@
 #define RENDERER_H
 
 #include <hpg/VulkanContext.h>
+#include <hpg/SwapChain.h>
+#include <hpg/FrameBuffer.h>
+#include <hpg/GBuffer.h>
 
 #include <array>
 
@@ -19,9 +22,11 @@ class Renderer {
 public:
 	void init(GLFWwindow* window);
 	void cleanup();
+	void recreateSwapchain();
 
 private:
 	void createCommandPool(VkCommandPool* commandPool, VkCommandPoolCreateFlags flags);
+
 
 public:
 	// the vulkan context
@@ -31,15 +36,18 @@ public:
 	std::array<VkCommandPool, POOLNUM> _commandPools;
 
 	// swap chain
+	SwapChain _swapChain;
 
 	// frame buffer
+	FrameBuffer _frameBuffer;
 
 	// gbuffer
+	GBuffer _gBuffer;
 
 	// main render pass
 
 	// synchronisation
-
+	
 };
 
 

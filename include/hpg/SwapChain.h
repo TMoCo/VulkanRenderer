@@ -30,10 +30,10 @@ public:
     };
 public:
     //-Initialisation and cleanup--------------------------------------------------------------------------------//    
-    void createSwapChain(VulkanContext* pVkSetup, VkDescriptorSetLayout* descriptorSetLayout);
-    void cleanupSwapChain();
+    void init(VulkanContext* pVkSetup);
+    void cleanup();
 
-    static SupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
+    static SupportDetails querySwapChainSupport(VulkanContext* pVkContext);
 
 private:
     //-Swap chain creation helpers-------------------------------------------------------------------------------//    
@@ -42,6 +42,7 @@ private:
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
+    // TODO: move render pass and pipelines outside of swap chain
     //-Render passes---------------------------------------------------------------------------------------------//    
     void createRenderPass();
     void createImGuiRenderPass();
@@ -49,28 +50,27 @@ private:
     //-Pipelines-------------------------------------------------------------------------------------------------//  
     void createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout);
 
-
-
 public:
     //-Members---------------------------------------------------------------------------------------------------//    
-    VulkanContext* vkSetup;
+    VulkanContext* _vkContext;
 
-    VkSwapchainKHR           swapChain;
+    VkSwapchainKHR _swapChain;
     
-    VkExtent2D               extent;
-    VkFormat                 imageFormat;
-    std::vector<VkImage>     images;
-    std::vector<VkImageView> imageViews;
+    VkExtent2D _extent;
+    VkFormat   _format;
     
-    SupportDetails  supportDetails;
+    F32 _aspectRatio;
+    UI32 _imageCount;
+    std::vector<VkImage>     _images;
+    std::vector<VkImageView> _imageViews;
+    
+    SupportDetails  _supportDetails;
 
-    VkRenderPass     renderPass;
-    VkRenderPass     imGuiRenderPass;
+    VkRenderPass _renderPass;
+    VkRenderPass _guiRenderPass;
 
-    VkPipelineLayout pipelineLayout;
-    VkPipeline       pipeline;
-
-    bool enableDepthTest = true; // default
+    VkPipelineLayout _pipelineLayout;
+    VkPipeline       _pipeline;
 };
 
 #endif // !VULKAN_SWAP_CHAIN_H
