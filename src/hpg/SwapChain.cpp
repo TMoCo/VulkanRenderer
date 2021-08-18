@@ -59,7 +59,7 @@ void SwapChain::cleanupSwapChain() {
 }
 
 void SwapChain::createSwapChain() {
-    supportDetails = querySwapChainSupport(); // is sc supported
+    supportDetails = querySwapChainSupport(vkSetup->physicalDevice, vkSetup->surface); // is sc supported
 
     VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(supportDetails.formats);
     VkPresentModeKHR presentMode     = chooseSwapPresentMode(supportDetails.presentModes);
@@ -112,36 +112,6 @@ void SwapChain::createSwapChain() {
     // save format and extent
     imageFormat = surfaceFormat.format;
     extent      = newExtent;
-}
-
-VulkanSetup::SwapChainSupportDetails SwapChain::querySwapChainSupport() {
-    VulkanSetup::SwapChainSupportDetails details;
-    // query the surface capabilities and store in a VkSurfaceCapabilities struct
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkSetup->physicalDevice, vkSetup->surface, &details.capabilities); // takes into account device and surface when determining capabilities
-
-    // same as we have seen many times before
-    uint32_t formatCount;
-    // query the available formats, pass null ptr to just set the count
-    vkGetPhysicalDeviceSurfaceFormatsKHR(vkSetup->physicalDevice, vkSetup->surface, &formatCount, nullptr);
-
-    // if there are formats
-    if (formatCount != 0) {
-        // then resize the vector accordingly
-        details.formats.resize(formatCount);
-        // and set details struct fromats vector with the data pointer
-        vkGetPhysicalDeviceSurfaceFormatsKHR(vkSetup->physicalDevice, vkSetup->surface, &formatCount, details.formats.data());
-    }
-
-    // exact same thing as format for presentation modes
-    uint32_t presentModeCount;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(vkSetup->physicalDevice, vkSetup->surface, &presentModeCount, nullptr);
-
-    if (presentModeCount != 0) {
-        details.presentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(vkSetup->physicalDevice, vkSetup->surface, &presentModeCount, details.presentModes.data());
-    }
-
-    return details;
 }
 
 VkSurfaceFormatKHR SwapChain::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
@@ -414,4 +384,34 @@ void SwapChain::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout
 
     vkDestroyShaderModule(vkSetup->device, fragShaderModule, nullptr);
     vkDestroyShaderModule(vkSetup->device, vertShaderModule, nullptr);
+}
+
+SwapChain::SwapChainSupportDetails SwapChain::querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) {
+    SwapChain::SwapChainSupportDetails details;
+    // query the surface capabilities and store in a VkSurfaceCapabilities struct
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities); // takes into account device and surface when determining capabilities
+
+    // same as we have seen many times before
+    uint32_t formatCount;
+    // query the available formats, pass null ptr to just set the count
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+
+    // if there are formats
+    if (formatCount != 0) {
+        // then resize the vector accordingly
+        details.formats.resize(formatCount);
+        // and set details struct fromats vector with the data pointer
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
+    }
+
+    // exact same thing as format for presentation modes
+    uint32_t presentModeCount;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+
+    if (presentModeCount != 0) {
+        details.presentModes.resize(presentModeCount);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
+    }
+
+    return details;
 }

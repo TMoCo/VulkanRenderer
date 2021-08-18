@@ -9,6 +9,7 @@
 
 // include the class declaration
 #include <hpg/VulkanSetup.h>
+#include <hpg/SwapChain.h>
 
 // glfw window library
 #define GLFW_INCLUDE_VULKAN
@@ -20,6 +21,7 @@
 
 #include <set>
 #include <string>
+
 
 //
 // INITIALISATION AND DESTRUCTION
@@ -314,7 +316,7 @@ bool VulkanSetup::isDeviceSuitable(VkPhysicalDevice device) {
     bool swapChainAdequate = false;
     if (extensionsSupported) { // if extension supported, in our case extension for the swap chain
         // find out more about the swap chain details
-        VulkanSetup::SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
+        SwapChain::SwapChainSupportDetails swapChainSupport = SwapChain::querySwapChainSupport(device, surface);
         // at least one supported image format and presentation mode is sufficient for now
         swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
     }
@@ -348,36 +350,6 @@ bool VulkanSetup::checkDeviceExtensionSupport(VkPhysicalDevice device) {
 
     // if the required extensions vector is empty, then they were erased because they are available, so return true with empty() 
     return requiredExtensions.empty();
-}
-
-VulkanSetup::SwapChainSupportDetails VulkanSetup::querySwapChainSupport(VkPhysicalDevice device) {
-    VulkanSetup::SwapChainSupportDetails details;
-    // query the surface capabilities and store in a VkSurfaceCapabilities struct
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities); // takes into account device and surface when determining capabilities
-
-    // same as we have seen many times before
-    uint32_t formatCount;
-    // query the available formats, pass null ptr to just set the count
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
-
-    // if there are formats
-    if (formatCount != 0) {
-        // then resize the vector accordingly
-        details.formats.resize(formatCount);
-        // and set details struct fromats vector with the data pointer
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
-    }
-
-    // exact same thing as format for presentation modes
-    uint32_t presentModeCount;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
-
-    if (presentModeCount != 0) {
-        details.presentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
-    }
-
-    return details;
 }
 
 void VulkanSetup::createLogicalDevice() {

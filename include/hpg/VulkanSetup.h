@@ -31,14 +31,6 @@
 
 class VulkanSetup {
 public:
-    //-----------------------------------------------------------------------------------------------------------//
-    struct SwapChainSupportDetails {
-        VkSurfaceCapabilitiesKHR        capabilities;
-        std::vector<VkSurfaceFormatKHR> formats;
-        std::vector<VkPresentModeKHR>   presentModes;
-    };
-
-public:
     //-Initialisation and cleanup--------------------------------------------------------------------------------//
     void initSetup(GLFWwindow* window);
     void cleanupSetup();
@@ -65,7 +57,6 @@ private:
     //-Vulkan devices--------------------------------------------------------------------------------------------//
     void pickPhysicalDevice();
     bool isDeviceSuitable(VkPhysicalDevice device);
-    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
     bool checkDeviceExtensionSupport(VkPhysicalDevice device);
     void createLogicalDevice();
 
