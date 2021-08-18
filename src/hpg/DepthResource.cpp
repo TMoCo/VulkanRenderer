@@ -16,36 +16,36 @@
 //
 //////////////////////
 
-void DepthResource::createDepthResource(VulkanSetup* pVkSetup, const VkExtent2D& extent, VkCommandPool commandPool) {
+void DepthResource::createDepthResource(VulkanContext* pVkSetup, const VkExtent2D& extent, VkCommandPool commandPool) {
     vkSetup = pVkSetup;
     // depth image should have the same resolution as the colour attachment, defined by swap chain extent
     VkFormat depthFormat = findDepthFormat(vkSetup); // find a depth format
 
     // we have the information needed to create an image (the format, usage etc) and an image view
-    VulkanImage::ImageCreateInfo info{};
+    Image::ImageCreateInfo info{};
     info.width        = extent.width;
     info.height       = extent.height;
     info.format       = depthFormat;
     info.tiling       = VK_IMAGE_TILING_OPTIMAL;
     info.usage        = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     info.properties   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    info.pVulkanImage = &depthImage;
+    info.pImage = &depthImage;
 
-    VulkanImage::createImage(vkSetup, commandPool, info);
+    Image::createImage(vkSetup, commandPool, info);
 
-    VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(depthImage.image,
+    VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(depthImage._vkImage,
         VK_IMAGE_VIEW_TYPE_2D, depthFormat, {}, { VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1 });
-    depthImageView = VulkanImage::createImageView(vkSetup, imageViewCreateInfo);
+    depthImageView = Image::createImageView(vkSetup, imageViewCreateInfo);
 
-    VulkanImage::LayoutTransitionInfo transitionData{};
-    transitionData.pVulkanImage      = &depthImage;
+    Image::LayoutTransitionInfo transitionData{};
+    transitionData.pImage      = &depthImage;
     transitionData.renderCommandPool = commandPool;
     transitionData.format            = depthFormat;
     transitionData.oldLayout         = VK_IMAGE_LAYOUT_UNDEFINED;
     transitionData.newLayout         = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     // undefined layout is used as the initial layout as there are no existing depth image contents that matter
-    VulkanImage::transitionImageLayout(vkSetup, transitionData);
+    Image::transitionImageLayout(vkSetup, transitionData);
 }
 
 void DepthResource::cleanupDepthResource() {
@@ -57,7 +57,7 @@ void DepthResource::cleanupDepthResource() {
 // Helper functions
 //
 
-VkFormat DepthResource::findSupportedFormat(const VulkanSetup* vkSetup, const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
+VkFormat DepthResource::findSupportedFormat(const VulkanContext* vkSetup, const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
     // instead of a fixed format, get a list of formats ranked from most to least desirable and iterate through it
     for (VkFormat format : candidates) {
         // query the support of the format by the device
@@ -79,7 +79,7 @@ VkFormat DepthResource::findSupportedFormat(const VulkanSetup* vkSetup, const st
     throw std::runtime_error("failed to find supported format!");
 }
 
-VkFormat DepthResource::findDepthFormat(const VulkanSetup* vkSetup) {
+VkFormat DepthResource::findDepthFormat(const VulkanContext* vkSetup) {
     // return a certain depth format if available
     return findSupportedFormat( 
         vkSetup,

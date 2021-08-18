@@ -13,7 +13,7 @@
 
 #include <common/Model.h>
 
-#include <hpg/VulkanSetup.h> // for referencing the device
+#include <hpg/VulkanContext.h> // for referencing the device
 #include <hpg/DepthResource.h> // for referencing the depth resource
 
 #include <vector> // vector container
@@ -23,17 +23,17 @@
 class SwapChain {
 public:
     //-----------------------------------------------------------------------------------------------------------//
-    struct SwapChainSupportDetails {
+    struct SupportDetails {
         VkSurfaceCapabilitiesKHR        capabilities;
         std::vector<VkSurfaceFormatKHR> formats;
         std::vector<VkPresentModeKHR>   presentModes;
     };
 public:
     //-Initialisation and cleanup--------------------------------------------------------------------------------//    
-    void createSwapChain(VulkanSetup* pVkSetup, Model* model, VkDescriptorSetLayout* descriptorSetLayout);
+    void createSwapChain(VulkanContext* pVkSetup, VkDescriptorSetLayout* descriptorSetLayout);
     void cleanupSwapChain();
 
-    static SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
+    static SupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
 
 private:
     //-Swap chain creation helpers-------------------------------------------------------------------------------//    
@@ -47,13 +47,13 @@ private:
     void createImGuiRenderPass();
     
     //-Pipelines-------------------------------------------------------------------------------------------------//  
-    void createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout, Model* model);
+    void createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout);
 
 
 
 public:
     //-Members---------------------------------------------------------------------------------------------------//    
-    VulkanSetup* vkSetup;
+    VulkanContext* vkSetup;
 
     VkSwapchainKHR           swapChain;
     
@@ -62,7 +62,7 @@ public:
     std::vector<VkImage>     images;
     std::vector<VkImageView> imageViews;
     
-    SwapChainSupportDetails  supportDetails;
+    SupportDetails  supportDetails;
 
     VkRenderPass     renderPass;
     VkRenderPass     imGuiRenderPass;

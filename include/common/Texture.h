@@ -9,9 +9,9 @@
 #ifndef TEXTURE_H
 #define TEXTURE_H
 
-#include <hpg/Buffers.h>
+#include <hpg/Buffer.h>
 #include <hpg/Image.h>
-#include <hpg/VulkanSetup.h>
+#include <hpg/VulkanContext.h>
 
 #include <string> // string class
 
@@ -20,7 +20,7 @@
 class Texture {
 public:
     //-Initialisation and cleanup----------------------------------------//    
-    void createTexture(VulkanSetup* pVkSetup, const VkCommandPool& commandPool, const ImageData& imageData);
+    void createTexture(VulkanContext* pVkSetup, const VkCommandPool& commandPool, const ImageData& imageData);
     void cleanupTexture();
 
 private:
@@ -29,9 +29,9 @@ private:
 
 public:
     //-Members-----------------------------------------------------------//    
-    VulkanSetup* vkSetup;
+    VulkanContext* vkSetup;
 
-    VulkanImage    textureImage;
+    Image    textureImage;
     VkImageView    textureImageView = nullptr;
 
     VkSampler textureSampler;

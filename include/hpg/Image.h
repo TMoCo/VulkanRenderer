@@ -12,7 +12,7 @@
 
 #include <common/types.h>
 
-#include <hpg/Buffers.h>
+#include <hpg/Buffer.h>
 
 #include <vulkan/vulkan_core.h>
 
@@ -21,10 +21,10 @@ struct ImageData {
     UI32 width;
     UI32 height;
     VkFormat format;
-    Buffer pixels;
+    BufferData pixels;
 };
 
-class VulkanImage {
+class Image {
 public:
     //-Texture operation info structs-------------------------------------//
     struct ImageCreateInfo {
@@ -36,11 +36,11 @@ public:
         uint32_t              arrayLayers = 1; // default to 1 for convenience
         VkMemoryPropertyFlags properties = VK_NULL_HANDLE;
         VkImageCreateFlags    flags = 0;
-        VulkanImage*          pVulkanImage = nullptr;
+        Image*                pImage = nullptr;
     };
 
     struct LayoutTransitionInfo {
-        VulkanImage*  pVulkanImage      = nullptr;
+        Image*        pImage      = nullptr;
         VkCommandPool renderCommandPool = VK_NULL_HANDLE;
         VkFormat      format            = VK_FORMAT_UNDEFINED;
         VkImageLayout oldLayout         = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -56,14 +56,14 @@ public:
 
 public:
     //-Initialisation and cleanup-----------------------------------------//
-    static void createImage(const VulkanSetup* vkSetup, const VkCommandPool& commandPool, const ImageCreateInfo& info);
-    void cleanupImage(const VulkanSetup* vkSetup);
+    static void createImage(const VulkanContext* vkSetup, const VkCommandPool& commandPool, const ImageCreateInfo& info);
+    void cleanupImage(const VulkanContext* vkSetup);
 
     //-Image view creation------------------------------------------------//
-    static VkImageView createImageView(const VulkanSetup* vkSetup, const VkImageViewCreateInfo& imageViewCreateInfo);
+    static VkImageView createImageView(const VulkanContext* vkSetup, const VkImageViewCreateInfo& imageViewCreateInfo);
 
     //-Image layout transition--------------------------------------------//
-    static void transitionImageLayout(const VulkanSetup* vkSetup, const LayoutTransitionInfo& transitionInfo);
+    static void transitionImageLayout(const VulkanContext* vkSetup, const LayoutTransitionInfo& transitionInfo);
 
     //-Image Loading from file--------------------------------------------//
     static ImageData loadImageFromFile(const std::string& path);
@@ -75,10 +75,10 @@ public:
     static VkBool32 formatIsFilterable(VkPhysicalDevice physicalDevice, VkFormat format, VkImageTiling tiling);
 
 public:
-    VkExtent2D     extent      = { 0, 0 };
-    VkFormat       format      = VK_FORMAT_UNDEFINED;
-    VkImage        image       = nullptr;
-    VkDeviceMemory imageMemory = nullptr;
+    VkExtent2D     _extent        = { 0, 0 };
+    VkFormat       _format        = VK_FORMAT_UNDEFINED;
+    VkImage        _vkImage       = nullptr;
+    VkDeviceMemory _memory        = nullptr;
 };
 
 #endif // !VULKAN_IMAGE_H

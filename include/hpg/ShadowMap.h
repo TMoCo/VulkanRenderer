@@ -16,7 +16,7 @@ public:
 		glm::mat4 depthMVP;
 	};
 	//-Initialisation and cleanup--------------------------------------------------------------------------------//
-	void createShadowMap(VulkanSetup* pVkSetup, VkDescriptorSetLayout* descriptorSetLayout, Model* model, const VkCommandPool& cmdPool);
+	void createShadowMap(VulkanContext* pVkSetup, VkDescriptorSetLayout* descriptorSetLayout, const VkCommandPool& cmdPool);
 	void cleanupShadowMap();
 
 	void createAttachment(const VkCommandPool& cmdPool);
@@ -27,15 +27,15 @@ public:
 
 	void createShadowMapSampler();
 
-	void createShadowMapPipeline(VkDescriptorSetLayout* descriptorSetLayout, Model* model);
+	void createShadowMapPipeline(VkDescriptorSetLayout* descriptorSetLayout);
 
 	void updateShadowMapUniformBuffer(const UBO& ubo);
 
 public:
-	VulkanSetup* vkSetup;
+	VulkanContext* vkSetup;
 
 	// an image representing the depth seen from the light's perspective, to be sampled
-	VulkanImage vulkanImage;
+	Image		image;
 	VkFormat    format = VK_FORMAT_D16_UNORM;
 	VkImageView imageView;
 	UI32 extent = 1024;
@@ -51,7 +51,7 @@ public:
 	VkPipelineLayout layout;
 	VkPipeline shadowMapPipeline;
 
-	VulkanBuffer shadowMapUniformBuffer;
+	Buffer shadowMapUniformBuffer;
 };
 
 #endif // !SHADOW_MAP_H

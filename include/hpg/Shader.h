@@ -5,7 +5,7 @@
 #ifndef SHADER_H
 #define SHADER_H
 
-#include <hpg/VulkanSetup.h> // for referencing the device
+#include <hpg/VulkanContext.h> // for referencing the device
 
 #include <vector>
 #include <string>
@@ -39,7 +39,7 @@ struct Shader {
         return buffer;
     }
 
-    inline static VkShaderModule createShaderModule(VulkanSetup* vkSetup, const std::vector<char>& code) {
+    inline static VkShaderModule createShaderModule(VulkanContext* vkSetup, const std::vector<char>& code) {
         // need to wrap the shader code into a shader module through this helper function, takes 
         // pointer to the byte code as argument
         VkShaderModuleCreateInfo createInfo{};

@@ -9,7 +9,7 @@
 // image loading
 #include <stb_image.h>
 
-void VulkanImage::createImage(const VulkanSetup* vkSetup, const VkCommandPool& commandPool, const VulkanImage::ImageCreateInfo& info) {
+void Image::createImage(const VulkanContext* vkSetup, const VkCommandPool& commandPool, const Image::ImageCreateInfo& info) {
     // create image ready to accept data on device
     VkImageCreateInfo imageInfo{};
     imageInfo.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -29,35 +29,35 @@ void VulkanImage::createImage(const VulkanSetup* vkSetup, const VkCommandPool& c
 
     // create the image. The hardware could fail for the format we have specified. We should have a list of acceptable formats and choose the best one depending
     // on the selection of formats supported by the device
-    if (vkCreateImage(vkSetup->device, &imageInfo, nullptr, &info.pVulkanImage->image) != VK_SUCCESS) {
+    if (vkCreateImage(vkSetup->device, &imageInfo, nullptr, &info.pImage->_vkImage) != VK_SUCCESS) {
         throw std::runtime_error("failed to create image!");
     }
 
     VkMemoryRequirements memRequirements;
-    vkGetImageMemoryRequirements(vkSetup->device, info.pVulkanImage->image, &memRequirements);
+    vkGetImageMemoryRequirements(vkSetup->device, info.pImage->_vkImage, &memRequirements);
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = utils::findMemoryType(&vkSetup->physicalDevice, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    if (vkAllocateMemory(vkSetup->device, &allocInfo, nullptr, &info.pVulkanImage->imageMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(vkSetup->device, &allocInfo, nullptr, &info.pImage->_memory) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate image memory!");
     }
 
-    vkBindImageMemory(vkSetup->device, info.pVulkanImage->image, info.pVulkanImage->imageMemory, 0);
+    vkBindImageMemory(vkSetup->device, info.pImage->_vkImage, info.pImage->_memory, 0);
 
     // update the image's format
-    info.pVulkanImage->format = info.format;
+    info.pImage->_format = info.format;
 }
 
-void VulkanImage::cleanupImage(const VulkanSetup* vkSetup) {
+void Image::cleanupImage(const VulkanContext* vkSetup) {
     // destroy the texture image and its memory
-    vkDestroyImage(vkSetup->device, image, nullptr);
-    vkFreeMemory(vkSetup->device, imageMemory, nullptr);
+    vkDestroyImage(vkSetup->device, _vkImage, nullptr);
+    vkFreeMemory(vkSetup->device, _memory, nullptr);
 }
 
-VkImageView VulkanImage::createImageView(const VulkanSetup* vkSetup, const VkImageViewCreateInfo& imageViewCreateInfo) {
+VkImageView Image::createImageView(const VulkanContext* vkSetup, const VkImageViewCreateInfo& imageViewCreateInfo) {
     VkImageView imageView;
     if (vkCreateImageView(vkSetup->device, &imageViewCreateInfo, nullptr, &imageView) != VK_SUCCESS) {
         throw std::runtime_error("failed to create texture image view!");
@@ -65,7 +65,7 @@ VkImageView VulkanImage::createImageView(const VulkanSetup* vkSetup, const VkIma
     return imageView;
 }
 
-void VulkanImage::transitionImageLayout(const VulkanSetup* vkSetup, const VulkanImage::LayoutTransitionInfo& transitionData) {
+void Image::transitionImageLayout(const VulkanContext* vkSetup, const Image::LayoutTransitionInfo& transitionData) {
     // images may have different layout, specify which layout we are transitioning to and from for optimal layout 
     VkCommandBuffer commandBuffer = utils::beginSingleTimeCommands(&vkSetup->device, transitionData.renderCommandPool);
     
@@ -80,7 +80,7 @@ void VulkanImage::transitionImageLayout(const VulkanSetup* vkSetup, const Vulkan
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     // info about the image
-    barrier.image = transitionData.pVulkanImage->image;
+    barrier.image = transitionData.pImage->_vkImage;
 
     // if for depth view should only contain depth aspect
     if (transitionData.newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
@@ -157,7 +157,7 @@ void VulkanImage::transitionImageLayout(const VulkanSetup* vkSetup, const Vulkan
     utils::endSingleTimeCommands(&vkSetup->device, &vkSetup->graphicsQueue, &commandBuffer, &transitionData.renderCommandPool);   
 }
 
-ImageData VulkanImage::loadImageFromFile(const std::string& path) {
+ImageData Image::loadImageFromFile(const std::string& path) {
     ImageData imageData{};
 
     I32 width, height, channels;
@@ -168,20 +168,20 @@ ImageData VulkanImage::loadImageFromFile(const std::string& path) {
     }
 
     // allocate memory, make a copy, then delete original
-    imageData.pixels.data = (UC*)malloc(width * height * channels * sizeof(UC));
-    memcpy(imageData.pixels.data, data, width * height * channels);
+    imageData.pixels._data = (UC*)malloc(width * height * channels * sizeof(UC));
+    memcpy(imageData.pixels._data, data, width * height * channels);
     stbi_image_free(data);
 
     imageData.width = width;
     imageData.height = height;
-    imageData.pixels.size = imageData.width * imageData.height * channels * sizeof(UC);
+    imageData.pixels._size = imageData.width * imageData.height * channels * sizeof(UC);
     imageData.format = getImageFormat(channels);
         
     // !!PIXELS NEED TO BE FREED!! do so when no longer in use at the end of application lifecycle
     return imageData;
 }
 
-VkFormat VulkanImage::getImageFormat(int numChannels) {
+VkFormat Image::getImageFormat(int numChannels) {
     switch (numChannels) {
     case 1:
         return VK_FORMAT_R8_SRGB;
@@ -196,17 +196,17 @@ VkFormat VulkanImage::getImageFormat(int numChannels) {
     }
 }
 
-VulkanImage::ImageFormatSupportDetails VulkanImage::queryFormatSupport(VkPhysicalDevice device, VkFormat format, VkImageType type,
+Image::ImageFormatSupportDetails Image::queryFormatSupport(VkPhysicalDevice device, VkFormat format, VkImageType type,
     VkImageTiling tiling, VkImageUsageFlags usage, VkImageCreateFlags flags) {
     // given a set of desired image parameters, determine if a format is supported or not
-    VulkanImage::ImageFormatSupportDetails details = { format, {} };
+    Image::ImageFormatSupportDetails details = { format, {} };
     if (vkGetPhysicalDeviceImageFormatProperties(device, format, type, tiling, usage, flags, &details.properties) != VK_SUCCESS) {
         PRINT("!!! format %i not supported !!!\n", format);
     }
     return details;
 }
 
-VkBool32 VulkanImage::formatIsFilterable(VkPhysicalDevice physicalDevice, VkFormat format, VkImageTiling tiling) {
+VkBool32 Image::formatIsFilterable(VkPhysicalDevice physicalDevice, VkFormat format, VkImageTiling tiling) {
     VkFormatProperties formatProps;
     vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProps);
 

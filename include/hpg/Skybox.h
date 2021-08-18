@@ -76,15 +76,15 @@ public:
 
 public:
 	//-Initialisation and cleanup----------------------------------------//    
-	void createSkybox(VulkanSetup* pVkSetup, const VkCommandPool& commandPool);
+	void createSkybox(VulkanContext* pVkSetup, const VkCommandPool& commandPool);
 	void cleanupSkybox();
 
 	//-Skybox uniform object update -------------------------------------//    
 	void updateSkyboxUniformBuffer(const UBO& ubo) {
 		void* data;
-		vkMapMemory(vkSetup->device, uniformBuffer.memory, 0, sizeof(ubo), 0, &data);
+		vkMapMemory(vkSetup->device, uniformBuffer._memory, 0, sizeof(ubo), 0, &data);
 		memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(vkSetup->device, uniformBuffer.memory);
+		vkUnmapMemory(vkSetup->device, uniformBuffer._memory);
 	}
 
 private:
@@ -99,15 +99,15 @@ private:
 
 public:
 	//-Members-----------------------------------------------------------//    
-	VulkanSetup* vkSetup;
+	VulkanContext* vkSetup;
 
-	VulkanImage    skyboxImage;
+	Image    skyboxImage;
 	VkImageView    skyboxImageView;
 
 	VkSampler skyboxSampler;
 
-	VulkanBuffer vertexBuffer;
-	VulkanBuffer uniformBuffer;
+	Buffer vertexBuffer;
+	Buffer uniformBuffer;
 };
 
 #endif // !SKYBOX_H

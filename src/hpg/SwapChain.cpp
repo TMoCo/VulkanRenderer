@@ -4,6 +4,8 @@
 
 #include <app/AppConstants.h>
 
+#include <common/Model.h>
+
 #include <utils/vkinit.h>
 
 #include <hpg/SwapChain.h>// include the class declaration
@@ -15,7 +17,7 @@
 #include <stdexcept>
 
 
-void SwapChain::createSwapChain(VulkanSetup* pVkSetup, Model* model, VkDescriptorSetLayout* descriptorSetLayout) {
+void SwapChain::createSwapChain(VulkanContext* pVkSetup, VkDescriptorSetLayout* descriptorSetLayout) {
     // update the pointer to the setup data rather than passing as argument to functions
     vkSetup = pVkSetup;
     // create the swap chain
@@ -26,7 +28,7 @@ void SwapChain::createSwapChain(VulkanSetup* pVkSetup, Model* model, VkDescripto
     for (size_t i = 0; i < images.size(); i++) {
         VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(images[i],
             VK_IMAGE_VIEW_TYPE_2D, imageFormat, {}, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
-        imageViews[i] = VulkanImage::createImageView(vkSetup, imageViewCreateInfo);
+        imageViews[i] = Image::createImageView(vkSetup, imageViewCreateInfo);
     }
 
     // then the geometry render pass 
@@ -36,7 +38,7 @@ void SwapChain::createSwapChain(VulkanSetup* pVkSetup, Model* model, VkDescripto
     createImGuiRenderPass();
 
     // followed by the graphics pipeline
-    createForwardPipeline(descriptorSetLayout, model);
+    createForwardPipeline(descriptorSetLayout);
 }
 
 void SwapChain::cleanupSwapChain() {
@@ -324,12 +326,12 @@ void SwapChain::createImGuiRenderPass() {
     }
 }
 
-void SwapChain::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout, Model* model) {
+void SwapChain::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout) {
     VkShaderModule vertShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(FWD_VERT_SHADER));
     VkShaderModule fragShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(FWD_FRAG_SHADER));
 
-    auto bindingDescription    = model->getBindingDescriptions(0);
-    auto attributeDescriptions = model->getAttributeDescriptions(0);
+    auto bindingDescription    = Model::getBindingDescriptions(0);
+    auto attributeDescriptions = Model::getAttributeDescriptions(0);
 
     VkViewport viewport{ 0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f };
     VkRect2D scissor{ { 0, 0 }, extent };
@@ -386,8 +388,8 @@ void SwapChain::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout
     vkDestroyShaderModule(vkSetup->device, vertShaderModule, nullptr);
 }
 
-SwapChain::SwapChainSupportDetails SwapChain::querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) {
-    SwapChain::SwapChainSupportDetails details;
+SwapChain::SupportDetails SwapChain::querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) {
+    SwapChain::SupportDetails details;
     // query the surface capabilities and store in a VkSurfaceCapabilities struct
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities); // takes into account device and surface when determining capabilities
 

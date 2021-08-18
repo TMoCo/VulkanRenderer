@@ -9,7 +9,7 @@
 #ifndef MODEL_H
 #define MODEL_H
 
-#include <hpg/Buffers.h> // buffers containing data
+#include <hpg/Buffer.h> // buffers containing data
 
 #include <common/Texture.h> 
 
@@ -31,6 +31,7 @@ public:
         glm::vec3 nor;
         glm::vec4 tan;
         glm::vec2 tex;
+        // TODO: PAD BETTER (put tex u in pos w and tex v in nor w)
     };
 
 public:
@@ -59,8 +60,8 @@ public:
     uint32_t getImageBitDepth(uint32_t imgIdx);
 
     //-Binding and attribute descriptions------------------------------------------------------------------------//
-    VkVertexInputBindingDescription getBindingDescriptions(uint32_t primitiveNum);
-    std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions(uint32_t primitiveNum);
+    static VkVertexInputBindingDescription getBindingDescriptions(uint32_t primitiveNum);
+    static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions(uint32_t primitiveNum);
 
     //-Get buffers-----------------------------------------------------------------------------------------------//
     std::vector<Vertex>* getVertexBuffer(uint32_t primitiveNum);

@@ -10,11 +10,11 @@
 #include <utils/vkinit.h>
 
 #include <hpg/Skybox.h>
-#include <hpg/Buffers.h>
+#include <hpg/Buffer.h>
 
 #include <stb_image.h>
 
-void Skybox::createSkybox(VulkanSetup* pVkSetup, const VkCommandPool& commandPool) {
+void Skybox::createSkybox(VulkanContext* pVkSetup, const VkCommandPool& commandPool) {
     vkSetup = pVkSetup;
 
     createSkyboxImage(commandPool);
@@ -23,11 +23,11 @@ void Skybox::createSkybox(VulkanSetup* pVkSetup, const VkCommandPool& commandPoo
 
     createSkyboxSampler();
 
-    VulkanBuffer::createDeviceLocalBuffer(vkSetup, commandPool,
-        Buffer{ (unsigned char*)Skybox::cubeVerts, 36 * sizeof(glm::vec3) }, // vertex data as buffer of bytes
+    Buffer::createDeviceLocalBuffer(vkSetup, commandPool,
+        BufferData{ (unsigned char*)Skybox::cubeVerts, 36 * sizeof(glm::vec3) }, // vertex data as buffer of bytes
         &vertexBuffer, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
-    VulkanBuffer::createUniformBuffer<Skybox::UBO>(vkSetup, 1, &uniformBuffer,
+    Buffer::createUniformBuffer<Skybox::UBO>(vkSetup, 1, &uniformBuffer,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 }
 
@@ -56,13 +56,13 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
     // use these to assign the width and height of the whole image, and allocate an array of bytes accordingly
     imageData.height = height;
     imageData.width = width;
-    imageData.format = VulkanImage::getImageFormat(channels);
-    imageData.pixels.size = height * width * channels * 6; // 6 images of dimensions w x h with pixels of n channels
-    imageData.pixels.data = (unsigned char*)malloc(imageData.pixels.size);
+    imageData.format = Image::getImageFormat(channels);
+    imageData.pixels._size = height * width * channels * 6; // 6 images of dimensions w x h with pixels of n channels
+    imageData.pixels._data = (unsigned char*)malloc(imageData.pixels._size);
 
-    PRINT("size of array: %zi\n size of uc: %zi\n", imageData.pixels.size * sizeof(unsigned char), sizeof(unsigned char));
+    PRINT("size of array: %zi\n size of uc: %zi\n", imageData.pixels._size * sizeof(unsigned char), sizeof(unsigned char));
 
-    if (!imageData.pixels.data) {
+    if (!imageData.pixels._data) {
         throw std::runtime_error("Error, could not allocate memory!");
     }
 
@@ -76,28 +76,28 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
         if (!data) {
             throw std::runtime_error("Could not load desired image file!");
         }        
-        memcpy(imageData.pixels.data + offset, data, height * width * channels);
+        memcpy(imageData.pixels._data + offset, data, height * width * channels);
         stbi_image_free(data);
         offset += height * width * channels;
     }
 
-    VulkanBuffer stagingBuffer{};
+    Buffer stagingBuffer{};
 
-    VulkanBuffer::CreateInfo createInfo{};
-    createInfo.size = imageData.pixels.size;
+    Buffer::CreateInfo createInfo{};
+    createInfo.size = imageData.pixels._size;
     createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     createInfo.properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    createInfo.pVulkanBuffer = &stagingBuffer;
+    createInfo.pBuffer = &stagingBuffer;
 
-    VulkanBuffer::createBuffer(vkSetup, &createInfo);
+    Buffer::createBuffer(vkSetup, &createInfo);
 
     void* data;
-    vkMapMemory(vkSetup->device, stagingBuffer.memory, 0, imageData.pixels.size, 0, &data);
-    memcpy(data, imageData.pixels.data, imageData.pixels.size);
-    vkUnmapMemory(vkSetup->device, stagingBuffer.memory);
+    vkMapMemory(vkSetup->device, stagingBuffer._memory, 0, imageData.pixels._size, 0, &data);
+    memcpy(data, imageData.pixels._data, imageData.pixels._size);
+    vkUnmapMemory(vkSetup->device, stagingBuffer._memory);
 
     // create the image and its memory
-    VulkanImage::ImageCreateInfo imgCreateInfo{};
+    Image::ImageCreateInfo imgCreateInfo{};
     imgCreateInfo.width = imageData.width;
     imgCreateInfo.height = imageData.height;
     imgCreateInfo.format = imageData.format;
@@ -107,29 +107,29 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
     imgCreateInfo.properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     imgCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
 
-    imgCreateInfo.pVulkanImage = &skyboxImage;
+    imgCreateInfo.pImage = &skyboxImage;
 
     // DEBUG looking at supported formats
     std::vector<VkFormat> formats = { VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R16G16B16_SFLOAT, VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_R8G8B8_SRGB };
 
     for (auto& format : formats) {
-        auto details = VulkanImage::queryFormatSupport(vkSetup->physicalDevice, format, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
+        auto details = Image::queryFormatSupport(vkSetup->physicalDevice, format, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
         PRINT("format %i details:\nmax array layers = %i\n", format, details.properties.maxArrayLayers);
     }
 
-    VulkanImage::createImage(vkSetup, commandPool, imgCreateInfo);
+    Image::createImage(vkSetup, commandPool, imgCreateInfo);
 
     // copy host data to device
-    VulkanImage::LayoutTransitionInfo transitionData{};
-    transitionData.pVulkanImage = &skyboxImage;
+    Image::LayoutTransitionInfo transitionData{};
+    transitionData.pImage = &skyboxImage;
     transitionData.renderCommandPool = commandPool;
     transitionData.format = imageData.format;
     transitionData.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     transitionData.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     transitionData.arrayLayers = 6;
 
-    VulkanImage::transitionImageLayout(vkSetup, transitionData); // specify the initial layout VK_IMAGE_LAYOUT_UNDEFINED
+    Image::transitionImageLayout(vkSetup, transitionData); // specify the initial layout VK_IMAGE_LAYOUT_UNDEFINED
 
     std::vector<VkBufferImageCopy> regions;
 
@@ -148,27 +148,27 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
         offset += imageData.width * imageData.height * channels;
     }
 
-    VulkanBuffer::copyBufferToImage(vkSetup, commandPool, stagingBuffer.buffer, skyboxImage.image, regions);
+    Buffer::copyBufferToImage(vkSetup, commandPool, stagingBuffer._vkBuffer, skyboxImage._vkImage, regions);
 
     // need another transfer to give the shader access to the texture
     transitionData.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     transitionData.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    VulkanImage::transitionImageLayout(vkSetup, transitionData);
+    Image::transitionImageLayout(vkSetup, transitionData);
 
     // cleanup the staging buffer and its memory
     stagingBuffer.cleanupBufferData(vkSetup->device);
     // cleanup image pixels still in host memory
-    free(imageData.pixels.data);
+    free(imageData.pixels._data);
 }
 
 void Skybox::createSkyboxImageView() {
     // image view for the cube image
-    VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(skyboxImage.image,
-        VK_IMAGE_VIEW_TYPE_CUBE, skyboxImage.format,
+    VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(skyboxImage._vkImage,
+        VK_IMAGE_VIEW_TYPE_CUBE, skyboxImage._format,
         VkComponentMapping{ VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A },
         VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6 });
-    skyboxImageView = VulkanImage::createImageView(vkSetup, imageViewCreateInfo);
+    skyboxImageView = Image::createImageView(vkSetup, imageViewCreateInfo);
 }
 
 void Skybox::createSkyboxSampler() {

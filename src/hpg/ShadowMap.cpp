@@ -7,7 +7,8 @@
 
 #include <array>
 
-void ShadowMap::createShadowMap(VulkanSetup* pVkSetup, VkDescriptorSetLayout* descriptorSetLayout, Model* model, const VkCommandPool& cmdPool) {
+void ShadowMap::createShadowMap(VulkanContext* pVkSetup, VkDescriptorSetLayout* descriptorSetLayout, 
+	const VkCommandPool& cmdPool) {
 	vkSetup = pVkSetup;
 	// create the depth image to sample from
 	createAttachment(cmdPool);
@@ -18,10 +19,10 @@ void ShadowMap::createShadowMap(VulkanSetup* pVkSetup, VkDescriptorSetLayout* de
 
 	createShadowMapFrameBuffer();
 
-	createShadowMapPipeline(descriptorSetLayout, model);
+	createShadowMapPipeline(descriptorSetLayout);
 
 	// uniform buffer
-	VulkanBuffer::createUniformBuffer<ShadowMap::UBO>(vkSetup, 1, &shadowMapUniformBuffer,
+	Buffer::createUniformBuffer<ShadowMap::UBO>(vkSetup, 1, &shadowMapUniformBuffer,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 }
 
@@ -38,26 +39,26 @@ void ShadowMap::cleanupShadowMap() {
 	vkDestroyRenderPass(vkSetup->device, shadowMapRenderPass, nullptr);
 
 	vkDestroyImageView(vkSetup->device, imageView, nullptr);
-	vulkanImage.cleanupImage(vkSetup);
+	image.cleanupImage(vkSetup);
 }
 
 void ShadowMap::createAttachment(const VkCommandPool& cmdPool) {
 	// create the image 
-	VulkanImage::ImageCreateInfo info{};
+	Image::ImageCreateInfo info{};
 	info.width = extent;
 	info.height = extent;
 	info.format = format;
 	info.tiling = VK_IMAGE_TILING_OPTIMAL;
 	info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-	info.pVulkanImage = &vulkanImage;
+	info.pImage = &image;
 
-	VulkanImage::createImage(vkSetup, cmdPool, info);
+	Image::createImage(vkSetup, cmdPool, info);
 
 	// create the image view
-	VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(vulkanImage.image,
+	VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(image._vkImage,
 		VK_IMAGE_VIEW_TYPE_2D, format, {}, { VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1 });
 
-	imageView = VulkanImage::createImageView(vkSetup, imageViewCreateInfo);
+	imageView = Image::createImageView(vkSetup, imageViewCreateInfo);
 }
 
 void ShadowMap::createShadowMapRenderPass() {
@@ -126,7 +127,7 @@ void ShadowMap::createShadowMapFrameBuffer() {
 }
 
 void ShadowMap::createShadowMapSampler() {
-	VkFilter filter = VulkanImage::formatIsFilterable(vkSetup->physicalDevice, format, 
+	VkFilter filter = Image::formatIsFilterable(vkSetup->physicalDevice, format, 
 		VK_IMAGE_TILING_OPTIMAL) ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
 
 	VkSamplerCreateInfo samplerCreateInfo{};
@@ -151,7 +152,7 @@ void ShadowMap::createShadowMapSampler() {
 	}
 }
 
-void ShadowMap::createShadowMapPipeline(VkDescriptorSetLayout* descriptorSetLayout, Model* model) {
+void ShadowMap::createShadowMapPipeline(VkDescriptorSetLayout* descriptorSetLayout) {
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
 
 	if (vkCreatePipelineLayout(vkSetup->device, &pipelineLayoutCreateInfo, nullptr, &layout) != VK_SUCCESS) {
@@ -182,8 +183,8 @@ void ShadowMap::createShadowMapPipeline(VkDescriptorSetLayout* descriptorSetLayo
 	VkPipelineMultisampleStateCreateInfo   multisampleStateCreateInfo =
 		vkinit::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
 
-	auto bindingDescription = model->getBindingDescriptions(0);
-	auto attributeDescriptions = model->getAttributeDescriptions(0);
+	auto bindingDescription = Model::getBindingDescriptions(0);
+	auto attributeDescriptions = Model::getAttributeDescriptions(0);
 
 	VkPipelineVertexInputStateCreateInfo   vertexInputStateCreateInfo =
 		vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription,
@@ -225,7 +226,7 @@ void ShadowMap::createShadowMapPipeline(VkDescriptorSetLayout* descriptorSetLayo
 
 void ShadowMap::updateShadowMapUniformBuffer(const ShadowMap::UBO& ubo) {
 	void* data;
-	vkMapMemory(vkSetup->device, shadowMapUniformBuffer.memory, 0, sizeof(ubo), 0, &data);
+	vkMapMemory(vkSetup->device, shadowMapUniformBuffer._memory, 0, sizeof(ubo), 0, &data);
 	memcpy(data, &ubo, sizeof(ubo));
-	vkUnmapMemory(vkSetup->device, shadowMapUniformBuffer.memory);
+	vkUnmapMemory(vkSetup->device, shadowMapUniformBuffer._memory);
 }

@@ -10,8 +10,8 @@
 #ifndef GBUFFER_H
 #define GBUFFER_H
 
-#include <hpg/VulkanSetup.h>
-#include <hpg/Buffers.h>
+#include <hpg/VulkanContext.h>
+#include <hpg/Buffer.h>
 #include <hpg/Image.h>
 #include <hpg/SwapChain.h>
 
@@ -47,15 +47,15 @@ public:
 
 	//-Framebuffer attachment------------------------------------------------------------------------------------//
 	struct Attachment {
-		VulkanImage vulkanImage{};
+		Image		image{};
 		VkFormat    format    = VK_FORMAT_UNDEFINED;
 		VkImageView imageView = nullptr;
 	};
 
 public:
 	//-Initialisation and cleanup--------------------------------------------------------------------------------//
-	void createGBuffer(VulkanSetup* pVkSetup, SwapChain* swapChain, VkDescriptorSetLayout* descriptorSetLayout, 
-		Model* model, const VkCommandPool& cmdPool);
+	void createGBuffer(VulkanContext* pVkSetup, SwapChain* swapChain, VkDescriptorSetLayout* descriptorSetLayout, 
+		const VkCommandPool& cmdPool);
 	void cleanupGBuffer();
 
 	//-Attachment creation---------------------------------------------------------------------------------------//
@@ -71,7 +71,7 @@ public:
 	void createColourSampler();
 
 	//-Deferred rendering pipeline-------------------------------------------------------------------------------//
-	void createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapChain* swapChain, Model* model);
+	void createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapChain* swapChain);
 
 	//-Uniform buffer update-------------------------------------------------------------------------------------//
 	void updateOffScreenUniformBuffer(const OffScreenUbo& ubo);
@@ -79,7 +79,7 @@ public:
 
 public:
 	//-Members---------------------------------------------------------------------------------------------------//
-	VulkanSetup* vkSetup;
+	VulkanContext* vkSetup;
 
 	VkExtent2D extent;
 
@@ -89,8 +89,8 @@ public:
 
 	VkSampler colourSampler;
 
-	VulkanBuffer offScreenUniform;
-	VulkanBuffer compositionUniforms;
+	Buffer offScreenUniform;
+	Buffer compositionUniforms;
 
 	std::map<std::string, Attachment> attachments;
 

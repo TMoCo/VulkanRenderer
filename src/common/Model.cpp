@@ -10,8 +10,9 @@
 
 #include <common/Model.h> // model class declaration
 
-#include <utils/Utils.h>
+#include <utils/utils.h>
 #include <utils/Assert.h>
+#include <utils/Print.h>
 
 // model loading
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -224,7 +225,7 @@ VkFormat Model::getImageFormat(uint32_t imgIdx) {
 /* ********************************************** Debug Copy Paste **********************************************
 
 #ifndef NDEBUG
-    std::cout << "DEBUG\t" << __FUNCTION__ << '\n';
+    PRINT("DEBUG\t\s\n", __FUNCTION__)
     std::cout << v << '\n';
     std::cout << std::endl;
     for (auto& v : arr) {
@@ -246,6 +247,15 @@ VkVertexInputBindingDescription Model::getBindingDescriptions(uint32_t primitive
 }
 
 std::array<VkVertexInputAttributeDescription, 4> Model::getAttributeDescriptions(uint32_t primitiveNum) {
+    // TODO: hard coded attribute description from the suzanne model
+    std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
+    attributeDescriptions[0] = { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos) };
+    attributeDescriptions[1] = { 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, nor) };
+    attributeDescriptions[2] = { 2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, tan) };
+    attributeDescriptions[3] = { 3, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, tex) };
+
+    return attributeDescriptions;
+    /*
     auto& primitive = model.meshes[0].primitives[primitiveNum];
 
     m_assert(primitive.attributes.size() == 4, "Model must have four attributes...");
@@ -253,6 +263,7 @@ std::array<VkVertexInputAttributeDescription, 4> Model::getAttributeDescriptions
 
     for (auto& attrib : primitive.attributes) {
         tinygltf::Accessor accessor = model.accessors[attrib.second];
+        PRINT("attrib name: %s\n", attrib.first.c_str());
 
         int size     = accessor.type != TINYGLTF_TYPE_SCALAR ? accessor.type : 1;
         int location = -1;
@@ -275,6 +286,7 @@ std::array<VkVertexInputAttributeDescription, 4> Model::getAttributeDescriptions
         }
         else
             throw std::runtime_error("Invalid vertex attribute!");
+        PRINT("location %i\n", location);
 
         // use attrib num in map as index in array
         attributeDescriptions[attrib.second - 1].binding  = primitiveNum;
@@ -284,6 +296,7 @@ std::array<VkVertexInputAttributeDescription, 4> Model::getAttributeDescriptions
     }
 
     return attributeDescriptions;
+    */
 }
 
 std::vector<Model::Vertex>* Model::getVertexBuffer(uint32_t primitiveNum) {
@@ -291,8 +304,8 @@ std::vector<Model::Vertex>* Model::getVertexBuffer(uint32_t primitiveNum) {
     vertices.resize(getNumVertices(primitiveNum));
     m_assert(vertices.size() > 0, "No vertex data in primitive...");
 
-    // map from attribute index to buffer offset (assumes order: pos, norm, tan, tex)
-    std::map<int, size_t> attributeOffsets;
+    // map from attribute index to buffer offset (in order: pos, norm, tan, tex)
+    std::map<int, size_t> attributeOffsets; 
     for (auto& attribute : model.meshes[0].primitives[primitiveNum].attributes) {
         
         attributeOffsets.insert({ attribute.second - 1, model.bufferViews[attribute.second].byteOffset });

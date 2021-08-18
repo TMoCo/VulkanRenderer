@@ -9,7 +9,7 @@
 #ifndef FRAME_BUFFER_H
 #define FRAME_BUFFER_H
 
-#include <hpg/VulkanSetup.h> // for referencing the device
+#include <hpg/VulkanContext.h> // for referencing the device
 #include <hpg/DepthResource.h> // for referencing the depth resource
 #include <hpg/SwapChain.h> // for referencing the swap chain
 
@@ -18,7 +18,7 @@
 class FrameBuffer {
 public:
     //-Initialisation and cleanup-----------------------------------------//    
-    void createFrameBuffer(VulkanSetup* pVkSetup, const SwapChain* swapChain, const VkCommandPool& commandPool);
+    void createFrameBuffer(VulkanContext* pVkSetup, const SwapChain* swapChain, const VkCommandPool& commandPool);
     void cleanupFrameBuffers();
 
 private:
@@ -28,7 +28,7 @@ private:
 
 public:
     //-Members------------------------------------------------------------//    
-    VulkanSetup* vkSetup;
+    VulkanContext* vkSetup;
 
     std::vector<VkFramebuffer> framebuffers;
     std::vector<VkFramebuffer> imGuiFramebuffers;

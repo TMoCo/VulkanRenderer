@@ -5,7 +5,7 @@
 #ifndef DEPTH_RESOURCE_H
 #define DEPTH_RESOURCE_H
 
-#include <hpg/VulkanSetup.h> // for referencing the device
+#include <hpg/VulkanContext.h> // for referencing the device
 #include <hpg/Image.h>
 
 #include <vulkan/vulkan_core.h>
@@ -13,18 +13,18 @@
 class DepthResource {
 public:
     //-Initialisation and cleanup-----------------------------------------//    
-    void createDepthResource(VulkanSetup* vkSetup, const VkExtent2D& extent, VkCommandPool commandPool);
+    void createDepthResource(VulkanContext* vkSetup, const VkExtent2D& extent, VkCommandPool commandPool);
     void cleanupDepthResource();
 
     //-Depth resource creation helpers------------------------------------//
-    static VkFormat findDepthFormat(const VulkanSetup* vkSetup);
-    static VkFormat findSupportedFormat(const VulkanSetup* vkSetup, const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+    static VkFormat findDepthFormat(const VulkanContext* vkSetup);
+    static VkFormat findSupportedFormat(const VulkanContext* vkSetup, const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 
 public:
     //-Members------------------------------------------------------------//
-    VulkanSetup* vkSetup;
+    VulkanContext* vkSetup;
 	
-    VulkanImage depthImage;
+    Image depthImage;
     VkImageView depthImageView;
 };
 

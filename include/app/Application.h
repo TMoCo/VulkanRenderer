@@ -19,12 +19,13 @@
 #include <math/primitives/Plane.h>
 #include <math/primitives/Cube.h>
 
-// classes for vulkan
-#include <hpg/VulkanSetup.h>
+// classes for rendering
+#include <hpg/Renderer.h>
+#include <hpg/VulkanContext.h>
 #include <hpg/SwapChain.h>
 #include <hpg/FrameBuffer.h>
 #include <hpg/GBuffer.h>
-#include <hpg/Buffers.h>
+#include <hpg/Buffer.h>
 #include <hpg/Skybox.h>
 #include <hpg/ShadowMap.h>
 
@@ -104,9 +105,11 @@ private:
 
 public:
     //-Members---------------------------------------------------------------------------------------------------//
-    GLFWwindow* window;
+    GLFWwindow* _window;
 
-    VulkanSetup vkSetup; // instance, device (logical, physical), ...
+    Renderer _renderer;
+
+    //VulkanContext vkSetup; // instance, device (logical, physical), ...
     SwapChain swapChain; // sc images, pipelines, ...
     FrameBuffer frameBuffer;
     GBuffer gBuffer;
@@ -115,8 +118,8 @@ public:
 
     Skybox skybox;
 
-    VulkanBuffer vertexBuffer;
-    VulkanBuffer indexBuffer;
+    Buffer vertexBuffer;
+    Buffer indexBuffer;
     std::vector<Texture> textures;
 
     Light lights[1];
@@ -138,12 +141,11 @@ public:
     VkDescriptorSet skyboxDescriptorSet;
     VkDescriptorSet shadowMapDescriptorSet;
 
-    VkCommandPool renderCommandPool;
+    //VkCommandPool renderCommandPool;
     std::vector<VkCommandBuffer> offScreenCommandBuffers;
     std::vector<VkCommandBuffer> renderCommandBuffers;
-    std::vector<VkCommandBuffer> shadowMapCommandBuffers;
 
-    VkCommandPool imGuiCommandPool;
+    //VkCommandPool imGuiCommandPool;
     std::vector<VkCommandBuffer> imGuiCommandBuffers;
 
     std::vector<VkSemaphore> offScreenSemaphores;

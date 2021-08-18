@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////
 //
-// Definition of the VulkanSetup class
+// Definition of the VulkanContext class
 //
 ///////////////////////////////////////////////////////
 
@@ -8,7 +8,7 @@
 #include <app/AppConstants.h>
 
 // include the class declaration
-#include <hpg/VulkanSetup.h>
+#include <hpg/VulkanContext.h>
 #include <hpg/SwapChain.h>
 
 // glfw window library
@@ -27,9 +27,10 @@
 // INITIALISATION AND DESTRUCTION
 //
 
-void VulkanSetup::initSetup(GLFWwindow* theWindow) {
+void VulkanContext::init(GLFWwindow* theWindow) {
     // keep a reference to the glfw window for now
     window = theWindow;
+
     // start by creating a vulkan instance
     createInstance();
 
@@ -46,7 +47,7 @@ void VulkanSetup::initSetup(GLFWwindow* theWindow) {
     createLogicalDevice();
 }
 
-void VulkanSetup::cleanupSetup() {
+void VulkanContext::cleanup() {
     // remove the logical device, no direct interaction with instance so not passed as argument
     vkDestroyDevice(device, nullptr);
     // destroy the window surface
@@ -63,7 +64,7 @@ void VulkanSetup::cleanupSetup() {
 // INSTANCE
 //
 
-void VulkanSetup::createInstance() {
+void VulkanContext::createInstance() {
     // if we have enabled validation layers and some requested layers aren't available, throw error
     if (enableValidationLayers && !checkValidationLayerSupport()) {
         throw std::runtime_error("validation layers requested, but not available!");
@@ -111,7 +112,7 @@ void VulkanSetup::createInstance() {
     }
 }
 
-std::vector<const char*> VulkanSetup::getRequiredExtensions() {
+std::vector<const char*> VulkanContext::getRequiredExtensions() {
     // start by getting the glfw extensions, nescessary for displaying something in a window.
     // platform agnostic, so need an extension to interface with window system. Use GLFW to return
     // the extensions needed for platform and passed to createInfo struct
@@ -138,7 +139,7 @@ std::vector<const char*> VulkanSetup::getRequiredExtensions() {
 // VALIDATION
 //
 
-void VulkanSetup::setupDebugMessenger() {
+void VulkanContext::setupDebugMessenger() {
     // do nothing if we are not in debug mode
     if (!enableValidationLayers) return;
 
@@ -154,7 +155,7 @@ void VulkanSetup::setupDebugMessenger() {
 }
 
 // proxy function handles finding the extension function vkCreateDebugUtilsMessengerEXT 
-VkResult VulkanSetup::CreateDebugUtilsMessengerEXT(VkInstance instance,
+VkResult VulkanContext::CreateDebugUtilsMessengerEXT(VkInstance instance,
     const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
     const VkAllocationCallbacks* pAllocator,
     VkDebugUtilsMessengerEXT* pDebugMessenger) {
@@ -171,7 +172,7 @@ VkResult VulkanSetup::CreateDebugUtilsMessengerEXT(VkInstance instance,
 }
 
 // similar to above function but for destroying a debug messenger
-void VulkanSetup::DestroyDebugUtilsMessengerEXT(VkInstance instance,
+void VulkanContext::DestroyDebugUtilsMessengerEXT(VkInstance instance,
     VkDebugUtilsMessengerEXT debugMessenger,
     const VkAllocationCallbacks* pAllocator) {
     auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
@@ -181,7 +182,7 @@ void VulkanSetup::DestroyDebugUtilsMessengerEXT(VkInstance instance,
     }
 }
 
-VKAPI_ATTR VkBool32 VKAPI_CALL VulkanSetup::debugCallback(
+VKAPI_ATTR VkBool32 VKAPI_CALL VulkanContext::debugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType,
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
@@ -204,7 +205,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VulkanSetup::debugCallback(
     return VK_FALSE;
 }
 
-void VulkanSetup::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
+void VulkanContext::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
     // the creation of a messenger create info is put in a separate function for use to debug the creation and destruction of 
     // a VkInstance object
     createInfo = {};
@@ -220,7 +221,7 @@ void VulkanSetup::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateIn
     createInfo.pfnUserCallback = debugCallback;
 }
 
-bool VulkanSetup::checkValidationLayerSupport() {
+bool VulkanContext::checkValidationLayerSupport() {
     uint32_t layerCount;
     // get the layer count
     vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
@@ -254,7 +255,7 @@ bool VulkanSetup::checkValidationLayerSupport() {
 // SURFACE
 //
 
-void VulkanSetup::createSurface() {
+void VulkanContext::createSurface() {
     // takes simple arguments instead of structs
     // object is platform agnostic but creation is not, this is handled by the glfw method
     if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
@@ -266,7 +267,7 @@ void VulkanSetup::createSurface() {
 // DEVICE
 // 
 
-void VulkanSetup::pickPhysicalDevice() {
+void VulkanContext::pickPhysicalDevice() {
     // similar to extensions, gets the physical devices available
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
@@ -298,7 +299,7 @@ void VulkanSetup::pickPhysicalDevice() {
     vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
 }
 
-bool VulkanSetup::isDeviceSuitable(VkPhysicalDevice device) {
+bool VulkanContext::isDeviceSuitable(VkPhysicalDevice device) {
     // if we wanted to look at the device properties and features in more detail:
     // VkPhysicalDeviceProperties deviceProperties;
     // vkGetPhysicalDeviceProperties(device, &deviceProperties);
@@ -316,7 +317,7 @@ bool VulkanSetup::isDeviceSuitable(VkPhysicalDevice device) {
     bool swapChainAdequate = false;
     if (extensionsSupported) { // if extension supported, in our case extension for the swap chain
         // find out more about the swap chain details
-        SwapChain::SwapChainSupportDetails swapChainSupport = SwapChain::querySwapChainSupport(device, surface);
+        SwapChain::SupportDetails swapChainSupport = SwapChain::querySwapChainSupport(device, surface);
         // at least one supported image format and presentation mode is sufficient for now
         swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
     }
@@ -329,7 +330,7 @@ bool VulkanSetup::isDeviceSuitable(VkPhysicalDevice device) {
     return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
 }
 
-bool VulkanSetup::checkDeviceExtensionSupport(VkPhysicalDevice device) {
+bool VulkanContext::checkDeviceExtensionSupport(VkPhysicalDevice device) {
     // intit the extension count
     uint32_t extensionCount;
     // set the extension count using the right vulkan enumerate function 
@@ -352,7 +353,7 @@ bool VulkanSetup::checkDeviceExtensionSupport(VkPhysicalDevice device) {
     return requiredExtensions.empty();
 }
 
-void VulkanSetup::createLogicalDevice() {
+void VulkanContext::createLogicalDevice() {
     // query the queue families available on the device
     utils::QueueFamilyIndices indices = utils::QueueFamilyIndices::findQueueFamilies(physicalDevice, surface);
 

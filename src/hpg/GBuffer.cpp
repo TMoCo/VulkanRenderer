@@ -1,3 +1,5 @@
+#include <common/Model.h>
+
 #include <hpg/GBuffer.h>
 #include <hpg/Shader.h>
 
@@ -6,8 +8,8 @@
 
 #include <app/AppConstants.h>
 
-void GBuffer::createGBuffer(VulkanSetup* pVkSetup, SwapChain* swapChain, VkDescriptorSetLayout* descriptorSetLayout, 
-	Model* model, const VkCommandPool& cmdPool) {
+void GBuffer::createGBuffer(VulkanContext* pVkSetup, SwapChain* swapChain, VkDescriptorSetLayout* descriptorSetLayout, 
+	const VkCommandPool& cmdPool) {
 	vkSetup = pVkSetup;
 	extent = swapChain->extent; // get extent from swap chain
 
@@ -23,13 +25,13 @@ void GBuffer::createGBuffer(VulkanSetup* pVkSetup, SwapChain* swapChain, VkDescr
 	createColourSampler();
 
 	// uniform buffers
-	VulkanBuffer::createUniformBuffer<GBuffer::OffScreenUbo>(vkSetup, 1, 
+	Buffer::createUniformBuffer<GBuffer::OffScreenUbo>(vkSetup, 1, 
 		&offScreenUniform, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-	VulkanBuffer::createUniformBuffer<GBuffer::CompositionUBO>(vkSetup, swapChain->images.size(), 
+	Buffer::createUniformBuffer<GBuffer::CompositionUBO>(vkSetup, swapChain->images.size(), 
 		&compositionUniforms, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-	createPipelines(descriptorSetLayout, swapChain, model);
+	createPipelines(descriptorSetLayout, swapChain);
 }
 
 void GBuffer::cleanupGBuffer() {
@@ -49,7 +51,7 @@ void GBuffer::cleanupGBuffer() {
 
 	for (auto& attachment : attachments) {
 		vkDestroyImageView(vkSetup->device, attachment.second.imageView, nullptr);
-		attachment.second.vulkanImage.cleanupImage(vkSetup);
+		attachment.second.image.cleanupImage(vkSetup);
 	}
 }
 
@@ -58,15 +60,15 @@ void GBuffer::createAttachment(const std::string& name, VkFormat format, VkImage
 	attachment->format = format;
 
 	// create the image 
-	VulkanImage::ImageCreateInfo info{};
+	Image::ImageCreateInfo info{};
 	info.width        = extent.width;
 	info.height       = extent.height;
 	info.format       = attachment->format;
 	info.tiling       = VK_IMAGE_TILING_OPTIMAL;
 	info.usage        = usage | VK_IMAGE_USAGE_SAMPLED_BIT;
-	info.pVulkanImage = &attachment->vulkanImage;
+	info.pImage		  = &attachment->image;
 
-	VulkanImage::createImage(vkSetup, cmdPool, info);
+	Image::createImage(vkSetup, cmdPool, info);
 
 	// create the image view
 	VkImageAspectFlags aspectMask = 0;
@@ -78,9 +80,9 @@ void GBuffer::createAttachment(const std::string& name, VkFormat format, VkImage
 	if (aspectMask <= 0)
 		throw std::runtime_error("Invalid aspect mask!");
 
-	VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(attachment->vulkanImage.image,
+	VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(attachment->image._vkImage,
 		VK_IMAGE_VIEW_TYPE_2D, format, {}, { aspectMask, 0, 1, 0, 1 });
-	attachment->imageView = VulkanImage::createImageView(vkSetup, imageViewCreateInfo);
+	attachment->imageView = Image::createImageView(vkSetup, imageViewCreateInfo);
 }
 
 void GBuffer::createRenderPass() {
@@ -195,7 +197,7 @@ void GBuffer::createColourSampler() {
 	}
 }
 
-void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapChain* swapChain, Model* model) {
+void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapChain* swapChain) {
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
 
 	if (vkCreatePipelineLayout(vkSetup->device, &pipelineLayoutCreateInfo, nullptr, &layout) != VK_SUCCESS) {
@@ -276,8 +278,8 @@ void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapCh
 
 	rasterizerStateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
 
-	auto bindingDescription = model->getBindingDescriptions(0);
-	auto attributeDescriptions = model->getAttributeDescriptions(0);
+	auto bindingDescription = Model::getBindingDescriptions(0);
+	auto attributeDescriptions = Model::getAttributeDescriptions(0);
 
 	VkPipelineVertexInputStateCreateInfo   vertexInputStateInfo =
 		vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription,
@@ -322,15 +324,15 @@ void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapCh
 
 void GBuffer::updateOffScreenUniformBuffer(const GBuffer::OffScreenUbo& ubo) {
 	void* data;
-	vkMapMemory(vkSetup->device, offScreenUniform.memory, 0, sizeof(ubo), 0, &data);
+	vkMapMemory(vkSetup->device, offScreenUniform._memory, 0, sizeof(ubo), 0, &data);
 	memcpy(data, &ubo, sizeof(ubo));
-	vkUnmapMemory(vkSetup->device, offScreenUniform.memory);
+	vkUnmapMemory(vkSetup->device, offScreenUniform._memory);
 }
 
 void GBuffer::updateCompositionUniformBuffer(uint32_t imageIndex, const GBuffer::CompositionUBO& ubo) {
 	void* data;
-	vkMapMemory(vkSetup->device, compositionUniforms.memory, sizeof(ubo) * imageIndex, sizeof(ubo), 0, &data);
+	vkMapMemory(vkSetup->device, compositionUniforms._memory, sizeof(ubo) * imageIndex, sizeof(ubo), 0, &data);
 	memcpy(data, &ubo, sizeof(ubo));
-	vkUnmapMemory(vkSetup->device, compositionUniforms.memory);
+	vkUnmapMemory(vkSetup->device, compositionUniforms._memory);
 }
 

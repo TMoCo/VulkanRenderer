@@ -42,9 +42,7 @@ void Application::run() {
 void Application::init() {
     initWindow();
 
-    vkSetup.initSetup(window);
-    createCommandPool(&renderCommandPool, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-    createCommandPool(&imGuiCommandPool, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    _renderer.init(_window);
 
     buildScene();
 
@@ -64,14 +62,14 @@ void Application::buildScene() {
     
     floor = Plane(20.0f, 20.0f);
 
-    skybox.createSkybox(&vkSetup, renderCommandPool);
+    skybox.createSkybox(&_renderer._context, _renderer._commandPools[kCmdPools::RENDER]);
 
     // textures
     const std::vector<ImageData>* textureImages = model.getMaterialTextureData(0);
     textures.resize(textureImages->size());
 
     for (size_t i = 0; i < textureImages->size(); i++) {
-        textures[i].createTexture(&vkSetup, renderCommandPool, textureImages->data()[i]);
+        textures[i].createTexture(&_renderer._context, _renderer._commandPools[kCmdPools::RENDER], textureImages->data()[i]);
     }
 
     // vertex buffer 
@@ -83,20 +81,20 @@ void Application::buildScene() {
         modelVertexBuffer->push_back(v);
     }
 
-    VulkanBuffer::createDeviceLocalBuffer(&vkSetup, renderCommandPool,
-        Buffer{ (unsigned char*)modelVertexBuffer->data(), modelVertexBuffer->size() * sizeof(Model::Vertex) }, // vertex data as buffer
+    Buffer::createDeviceLocalBuffer(& _renderer._context, _renderer._commandPools[kCmdPools::RENDER],
+        BufferData{ (UC*)modelVertexBuffer->data(), modelVertexBuffer->size() * sizeof(Model::Vertex) }, // vertex data as buffer
         &vertexBuffer, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
     // index buffer
-    std::vector<uint32_t>* iBuffer = model.getIndexBuffer(0);
+    std::vector<UI32>* iBuffer = model.getIndexBuffer(0);
     // generate indices for a quad
     UI32 offset = static_cast<UI32>(iBuffer->size());
     for (auto& i : floor.getIndices()) {
         iBuffer->push_back(i + offset);
     }
 
-    VulkanBuffer::createDeviceLocalBuffer(&vkSetup, renderCommandPool,
-        Buffer{ (unsigned char*)iBuffer->data(), iBuffer->size() * sizeof(uint32_t) }, // index data as buffer
+    Buffer::createDeviceLocalBuffer(&_renderer._context, _renderer._commandPools[kCmdPools::RENDER],
+        BufferData{ (UC*)iBuffer->data(), iBuffer->size() * sizeof(UI32) }, // index data as buffer
         &indexBuffer, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 }
 
@@ -105,26 +103,25 @@ void Application::initVulkan() {
     createDescriptorSetLayout();
 
     // swap chain
-    swapChain.createSwapChain(&vkSetup, &model, &descriptorSetLayout);
+    swapChain.createSwapChain(&_renderer._context, &descriptorSetLayout);
 
     // swap chain dependent
-    frameBuffer.createFrameBuffer(&vkSetup, &swapChain, renderCommandPool);
-    gBuffer.createGBuffer(&vkSetup, &swapChain, &descriptorSetLayout, &model, renderCommandPool);
-    shadowMap.createShadowMap(&vkSetup, &descriptorSetLayout, &model,  renderCommandPool);
+    frameBuffer.createFrameBuffer(&_renderer._context, &swapChain, _renderer._commandPools[kCmdPools::RENDER]);
+    gBuffer.createGBuffer(&_renderer._context, &swapChain, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
+    shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
 
     createDescriptorPool();
     createDescriptorSets(static_cast<UI32>(swapChain.images.size()));
 
     renderCommandBuffers.resize(swapChain.images.size());
     offScreenCommandBuffers.resize(swapChain.images.size());
-    shadowMapCommandBuffers.resize(swapChain.images.size());
     
     imGuiCommandBuffers.resize(swapChain.images.size());
 
-    createCommandBuffers(static_cast<UI32>(renderCommandBuffers.size()), renderCommandBuffers.data(), renderCommandPool);
-    createCommandBuffers(static_cast<UI32>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data(), renderCommandPool);
+    createCommandBuffers(static_cast<UI32>(renderCommandBuffers.size()), renderCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
+    createCommandBuffers(static_cast<UI32>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
 
-    createCommandBuffers(static_cast<UI32>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data(), imGuiCommandPool);
+    createCommandBuffers(static_cast<UI32>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data(), _renderer._commandPools[kCmdPools::GUI]);
 
     createSyncObjects();
 
@@ -138,20 +135,20 @@ void Application::initVulkan() {
 
 void Application::recreateVulkanData() {
     static I32 width = 0, height = 0;
-    glfwGetFramebufferSize(window, &width, &height);
+    glfwGetFramebufferSize(_window, &width, &height);
 
     while (width == 0 || height == 0) {
-        glfwGetFramebufferSize(window, &width, &height);
+        glfwGetFramebufferSize(_window, &width, &height);
         glfwWaitEvents();
     }
 
-    vkDeviceWaitIdle(vkSetup.device); // wait if in use by device
+    vkDeviceWaitIdle(_renderer._context.device); // wait if in use by device
 
     // destroy old swap chain dependencies
-    vkFreeCommandBuffers(vkSetup.device, imGuiCommandPool, static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data());
+    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::GUI], static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data());
 
-    vkFreeCommandBuffers(vkSetup.device, renderCommandPool, static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data());
-    vkFreeCommandBuffers(vkSetup.device, renderCommandPool, static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data());
+    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::RENDER], static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data());
+    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::RENDER], static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data());
 
     shadowMap.cleanupShadowMap();
     gBuffer.cleanupGBuffer();
@@ -159,17 +156,17 @@ void Application::recreateVulkanData() {
     swapChain.cleanupSwapChain();
 
     // create new swap chain etc...
-    swapChain.createSwapChain(&vkSetup, &model, &descriptorSetLayout);
-    frameBuffer.createFrameBuffer(&vkSetup, &swapChain, renderCommandPool);
-    gBuffer.createGBuffer(&vkSetup, &swapChain, &descriptorSetLayout, &model, renderCommandPool);
-    shadowMap.createShadowMap(&vkSetup, &descriptorSetLayout, &model, renderCommandPool);
+    swapChain.createSwapChain(&_renderer._context, &descriptorSetLayout);
+    frameBuffer.createFrameBuffer(&_renderer._context, &swapChain, _renderer._commandPools[kCmdPools::RENDER]);
+    gBuffer.createGBuffer(&_renderer._context, &swapChain, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
+    shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
 
     createDescriptorSets(static_cast<UI32>(swapChain.images.size()));
 
-    createCommandBuffers(static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data(), renderCommandPool);
-    createCommandBuffers(static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data(), renderCommandPool);
+    createCommandBuffers(static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
+    createCommandBuffers(static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
 
-    createCommandBuffers(static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data(), imGuiCommandPool);
+    createCommandBuffers(static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data(), _renderer._commandPools[kCmdPools::GUI]);
 
     for (UI32 i = 0; i < swapChain.images.size(); i++) {
         buildOffscreenCommandBuffer(i);
@@ -190,13 +187,13 @@ void Application::initImGui() {
     ImGui::StyleColorsDark();
 
     // Setup Platform/Renderer backends
-    ImGui_ImplGlfw_InitForVulkan(window, true);
+    ImGui_ImplGlfw_InitForVulkan(_window, true);
     ImGui_ImplVulkan_InitInfo init_info = {};
-    init_info.Instance       = vkSetup.instance;
-    init_info.PhysicalDevice = vkSetup.physicalDevice;
-    init_info.Device         = vkSetup.device;
-    init_info.QueueFamily    = utils::QueueFamilyIndices::findQueueFamilies(vkSetup.physicalDevice, vkSetup.surface).graphicsFamily.value();
-    init_info.Queue          = vkSetup.graphicsQueue;
+    init_info.Instance       = _renderer._context.instance;
+    init_info.PhysicalDevice = _renderer._context.physicalDevice;
+    init_info.Device         = _renderer._context.device;
+    init_info.QueueFamily    = utils::QueueFamilyIndices::findQueueFamilies(_renderer._context.physicalDevice, _renderer._context.surface).graphicsFamily.value();
+    init_info.Queue          = _renderer._context.graphicsQueue;
     init_info.PipelineCache  = VK_NULL_HANDLE;
     init_info.DescriptorPool = descriptorPool;
     init_info.Allocator      = nullptr;
@@ -210,9 +207,9 @@ void Application::initImGui() {
 }
 
 void Application::uploadFonts() {
-    VkCommandBuffer commandbuffer = utils::beginSingleTimeCommands(&vkSetup.device, imGuiCommandPool);
+    VkCommandBuffer commandbuffer = utils::beginSingleTimeCommands(&_renderer._context.device, _renderer._commandPools[kCmdPools::GUI]);
     ImGui_ImplVulkan_CreateFontsTexture(commandbuffer);
-    utils::endSingleTimeCommands(&vkSetup.device, &vkSetup.graphicsQueue, &commandbuffer, &imGuiCommandPool);
+    utils::endSingleTimeCommands(&_renderer._context.device, &_renderer._context.graphicsQueue, &commandbuffer, &_renderer._commandPools[kCmdPools::GUI]);
 }
 
 void Application::initWindow() {
@@ -221,10 +218,10 @@ void Application::initWindow() {
     // set parameters
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // initially for opengl, so tell it not to create opengl context
 
-    window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Deferred Rendering Demo", nullptr, nullptr);
+    _window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Deferred Rendering Demo", nullptr, nullptr);
 
-    glfwSetWindowUserPointer(window, this);
-    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+    glfwSetWindowUserPointer(_window, this);
+    glfwSetFramebufferSizeCallback(_window, framebufferResizeCallback);
 }
 
 // Descriptors
@@ -252,7 +249,7 @@ void Application::createDescriptorPool() {
     poolInfo.poolSizeCount = static_cast<uint32_t>(sizeof(poolSizes) / sizeof(VkDescriptorPoolSize));
     poolInfo.pPoolSizes    = poolSizes; // the descriptors
 
-    if (vkCreateDescriptorPool(vkSetup.device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+    if (vkCreateDescriptorPool(_renderer._context.device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor pool!");
     }
 }
@@ -279,7 +276,7 @@ void Application::createDescriptorSetLayout() {
     layoutCreateInf.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
     layoutCreateInf.pBindings = setLayoutBindings.data();
 
-    if (vkCreateDescriptorSetLayout(vkSetup.device, &layoutCreateInf, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(_renderer._context.device, &layoutCreateInf, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor set layout!");
     }
 }
@@ -290,7 +287,7 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
     VkDescriptorSetAllocateInfo allocInfo = vkinit::descriptorSetAllocInfo(descriptorPool, 1, layouts.data());
 
     // offscreen descriptor set
-    if (vkAllocateDescriptorSets(vkSetup.device, &allocInfo, &offScreenDescriptorSet) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(_renderer._context.device, &allocInfo, &offScreenDescriptorSet) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate descriptor sets!");
     }
 
@@ -298,7 +295,7 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
 
     // offscreen uniform
     VkDescriptorBufferInfo offScreenUboInf{};
-    offScreenUboInf.buffer = gBuffer.offScreenUniform.buffer;
+    offScreenUboInf.buffer = gBuffer.offScreenUniform._vkBuffer;
     offScreenUboInf.offset = 0;
     offScreenUboInf.range  = sizeof(GBuffer::OffScreenUbo);
     
@@ -319,16 +316,16 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
         vkinit::writeDescriptorSet(offScreenDescriptorSet, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &offScreenTexDescriptors[1])
     };
 
-    vkUpdateDescriptorSets(vkSetup.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+    vkUpdateDescriptorSets(_renderer._context.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
     // skybox descriptor set
-    if (vkAllocateDescriptorSets(vkSetup.device, &allocInfo, &skyboxDescriptorSet) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(_renderer._context.device, &allocInfo, &skyboxDescriptorSet) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate descriptor sets!");
     }
 
     // skybox uniform
     VkDescriptorBufferInfo skyboxUboInf{};
-    skyboxUboInf.buffer = skybox.uniformBuffer.buffer;
+    skyboxUboInf.buffer = skybox.uniformBuffer._vkBuffer;
     skyboxUboInf.offset = 0;
     skyboxUboInf.range = sizeof(Skybox::UBO);
 
@@ -345,16 +342,16 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
         vkinit::writeDescriptorSet(skyboxDescriptorSet, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &skyboxTexDescriptor)
     };
 
-    vkUpdateDescriptorSets(vkSetup.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+    vkUpdateDescriptorSets(_renderer._context.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
     // shadowMap descriptor set
-    if (vkAllocateDescriptorSets(vkSetup.device, &allocInfo, &shadowMapDescriptorSet) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(_renderer._context.device, &allocInfo, &shadowMapDescriptorSet) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate descriptor sets!");
     }
 
     // shadowMap uniform
     VkDescriptorBufferInfo shadowMapUboInf{};
-    shadowMapUboInf.buffer = shadowMap.shadowMapUniformBuffer.buffer;
+    shadowMapUboInf.buffer = shadowMap.shadowMapUniformBuffer._vkBuffer;
     shadowMapUboInf.offset = 0;
     shadowMapUboInf.range = sizeof(ShadowMap::UBO);
 
@@ -363,13 +360,13 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
         vkinit::writeDescriptorSet(shadowMapDescriptorSet, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &shadowMapUboInf),
     };
 
-    vkUpdateDescriptorSets(vkSetup.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+    vkUpdateDescriptorSets(_renderer._context.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
     // composition descriptor sets
     allocInfo.descriptorSetCount = static_cast<uint32_t>(layouts.size());
     compositionDescriptorSets.resize(layouts.size());
 
-    if (vkAllocateDescriptorSets(vkSetup.device, &allocInfo, compositionDescriptorSets.data()) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(_renderer._context.device, &allocInfo, compositionDescriptorSets.data()) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate descriptor sets!");
     }
 
@@ -397,7 +394,7 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
     for (size_t i = 0; i < compositionDescriptorSets.size(); i++) {
         // forward rendering uniform buffer
         VkDescriptorBufferInfo compositionUboInf{};
-        compositionUboInf.buffer = gBuffer.compositionUniforms.buffer;
+        compositionUboInf.buffer = gBuffer.compositionUniforms._vkBuffer;
         compositionUboInf.offset = sizeof(GBuffer::CompositionUBO) * i;
         compositionUboInf.range  = sizeof(GBuffer::CompositionUBO);
 
@@ -416,7 +413,7 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
         };
 
         // update according to the configuration
-        vkUpdateDescriptorSets(vkSetup.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+        vkUpdateDescriptorSets(_renderer._context.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
     }
 }
 
@@ -424,14 +421,14 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
 
 void Application::createCommandPool(VkCommandPool* commandPool, VkCommandPoolCreateFlags flags) {
     utils::QueueFamilyIndices queueFamilyIndices = 
-        utils::QueueFamilyIndices::findQueueFamilies(vkSetup.physicalDevice, vkSetup.surface);
+        utils::QueueFamilyIndices::findQueueFamilies(_renderer._context.physicalDevice, _renderer._context.surface);
 
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value(); // the queue to submit to
     poolInfo.flags            = flags;
 
-    if (vkCreateCommandPool(vkSetup.device, &poolInfo, nullptr, commandPool) != VK_SUCCESS) {
+    if (vkCreateCommandPool(_renderer._context.device, &poolInfo, nullptr, commandPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create command pool!");
     }
 }
@@ -443,7 +440,7 @@ void Application::createCommandBuffers(uint32_t count, VkCommandBuffer* commandB
     allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY; 
     allocInfo.commandBufferCount = count;
 
-    if (vkAllocateCommandBuffers(vkSetup.device, &allocInfo, commandBuffers) != VK_SUCCESS) {
+    if (vkAllocateCommandBuffers(_renderer._context.device, &allocInfo, commandBuffers) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate command buffers!");
     }
 }
@@ -542,15 +539,15 @@ void Application::buildOffscreenCommandBuffer(UI32 cmdBufferIndex) {
     vkCmdBindDescriptorSets(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, gBuffer.layout, 0, 1,
         &offScreenDescriptorSet, 0, nullptr);
     VkDeviceSize offset = 0; // offset into vertex buffer
-    vkCmdBindVertexBuffers(offScreenCommandBuffers[cmdBufferIndex], 0, 1, &vertexBuffer.buffer, &offset);
-    vkCmdBindIndexBuffer(offScreenCommandBuffers[cmdBufferIndex], indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindVertexBuffers(offScreenCommandBuffers[cmdBufferIndex], 0, 1, &vertexBuffer._vkBuffer, &offset);
+    vkCmdBindIndexBuffer(offScreenCommandBuffers[cmdBufferIndex], indexBuffer._vkBuffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdDrawIndexed(offScreenCommandBuffers[cmdBufferIndex], model.getNumIndices(0) + 6, 1, 0, 0, 0);
 
     // skybox pipeline
     vkCmdBindPipeline(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, gBuffer.skyboxPipeline);
     vkCmdBindDescriptorSets(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, gBuffer.layout, 0, 1,
         &skyboxDescriptorSet, 0, nullptr);
-    vkCmdBindVertexBuffers(offScreenCommandBuffers[cmdBufferIndex], 0, 1, &skybox.vertexBuffer.buffer, &offset);
+    vkCmdBindVertexBuffers(offScreenCommandBuffers[cmdBufferIndex], 0, 1, &skybox.vertexBuffer._vkBuffer, &offset);
     vkCmdDraw(offScreenCommandBuffers[cmdBufferIndex], 36, 1, 0, 0);
 
     vkCmdEndRenderPass(offScreenCommandBuffers[cmdBufferIndex]);
@@ -593,8 +590,8 @@ void Application::buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer) {
         &shadowMapDescriptorSet, 0, nullptr);
 
     VkDeviceSize offset = 0; // offset into vertex buffer
-    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer.buffer, &offset);
-    vkCmdBindIndexBuffer(cmdBuffer, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer._vkBuffer, &offset);
+    vkCmdBindIndexBuffer(cmdBuffer, indexBuffer._vkBuffer, 0, VK_INDEX_TYPE_UINT32);
     
     vkCmdDrawIndexed(cmdBuffer, model.getNumIndices(0) + 6, 1, 0, 0, 0);
 
@@ -633,12 +630,12 @@ void Application::createSyncObjects() {
 
     // simply loop over each frame and create semaphores for them
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        if (vkCreateSemaphore(vkSetup.device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(vkSetup.device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(vkSetup.device, &semaphoreInfo, nullptr, &offScreenSemaphores[i]) != VK_SUCCESS) {
+        if (vkCreateSemaphore(_renderer._context.device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+            vkCreateSemaphore(_renderer._context.device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
+            vkCreateSemaphore(_renderer._context.device, &semaphoreInfo, nullptr, &offScreenSemaphores[i]) != VK_SUCCESS) {
             throw std::runtime_error("failed to create semaphores!");
         }
-        if (vkCreateFence(vkSetup.device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+        if (vkCreateFence(_renderer._context.device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
             throw std::runtime_error("failed to create fences!");
         }
     }
@@ -652,7 +649,7 @@ void Application::mainLoop() {
     prevTime = std::chrono::high_resolution_clock::now();
     
     // loop keeps window open
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(_window)) {
         glfwPollEvents();
         // get the time before the drawing frame
         currTime = std::chrono::high_resolution_clock::now();
@@ -669,7 +666,7 @@ void Application::mainLoop() {
 
         prevTime = currTime;
     }
-    vkDeviceWaitIdle(vkSetup.device);
+    vkDeviceWaitIdle(_renderer._context.device);
 }
 
 // Frame drawing, GUI setting and UI
@@ -688,9 +685,9 @@ void Application::drawFrame() {
     /*************************************************************************************************************/
 
     // previous frame finished will fence
-    vkWaitForFences(vkSetup.device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+    vkWaitForFences(_renderer._context.device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
-    VkResult result = vkAcquireNextImageKHR(vkSetup.device, swapChain.swapChain, UINT64_MAX, 
+    VkResult result = vkAcquireNextImageKHR(_renderer._context.device, swapChain.swapChain, UINT64_MAX, 
         imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex); 
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -702,7 +699,7 @@ void Application::drawFrame() {
     }
 
     if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) { // Check if a previous frame is using this image
-        vkWaitForFences(vkSetup.device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+        vkWaitForFences(_renderer._context.device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
     }
 
     imagesInFlight[imageIndex] = inFlightFences[currentFrame]; // set image as in use by current frame
@@ -726,7 +723,7 @@ void Application::drawFrame() {
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers    = &offScreenCommandBuffers[currentFrame];
 
-    if (vkQueueSubmit(vkSetup.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+    if (vkQueueSubmit(_renderer._context.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
 
@@ -742,12 +739,12 @@ void Application::drawFrame() {
     submitInfo.pCommandBuffers    = submitCommandBuffers.data();
 
     // reset the fence so fence blocks when submitting 
-    vkResetFences(vkSetup.device, 1, &inFlightFences[currentFrame]); 
+    vkResetFences(_renderer._context.device, 1, &inFlightFences[currentFrame]); 
 
     // submit the command buffer to the graphics queue, takes an array of submitinfo when work load is much larger
     // last param is a fence, which is signaled when the cmd buffer finishes executing and is used to inform that the frame has finished
     // being rendered (the commands were all executed). The next frame can start rendering!
-    if (vkQueueSubmit(vkSetup.graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
+    if (vkQueueSubmit(_renderer._context.graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
 
@@ -763,7 +760,7 @@ void Application::drawFrame() {
     presentInfo.pImageIndices  = &imageIndex;
 
     // submit request to put image from the swap chain to the presentation queue
-    result = vkQueuePresentKHR(vkSetup.presentQueue, &presentInfo);
+    result = vkQueuePresentKHR(_renderer._context.presentQueue, &presentInfo);
 
     // check presentation queue can accept the image and any resize
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
@@ -849,48 +846,48 @@ void Application::updateUniformBuffers(uint32_t currentImage) {
 
 int Application::processKeyInput() {
     // special case return 0 to exit the program
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE))
+    if (glfwGetKey(_window, GLFW_KEY_ESCAPE))
         return 0;
 
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT)) {
+    if (glfwGetKey(_window, GLFW_KEY_LEFT_SHIFT)) {
         // up/down 
-        if (glfwGetKey(window, GLFW_KEY_UP))
+        if (glfwGetKey(_window, GLFW_KEY_UP))
             camera.processInput(CameraMovement::Upward, deltaTime);
-        if (glfwGetKey(window, GLFW_KEY_DOWN))
+        if (glfwGetKey(_window, GLFW_KEY_DOWN))
             camera.processInput(CameraMovement::Downward, deltaTime);
     }
     else {
         // front/back
-        if (glfwGetKey(window, GLFW_KEY_UP))
+        if (glfwGetKey(_window, GLFW_KEY_UP))
             camera.processInput(CameraMovement::Forward, deltaTime);
-        if (glfwGetKey(window, GLFW_KEY_DOWN))
+        if (glfwGetKey(_window, GLFW_KEY_DOWN))
             camera.processInput(CameraMovement::Backward, deltaTime);
     }
 
     // left/right
-    if (glfwGetKey(window, GLFW_KEY_LEFT))
+    if (glfwGetKey(_window, GLFW_KEY_LEFT))
         camera.processInput(CameraMovement::Left, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_RIGHT))
+    if (glfwGetKey(_window, GLFW_KEY_RIGHT))
         camera.processInput(CameraMovement::Right, deltaTime);
 
     // pitch up/down
-    if (glfwGetKey(window, GLFW_KEY_W))
+    if (glfwGetKey(_window, GLFW_KEY_W))
         camera.processInput(CameraMovement::PitchUp, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_S))
+    if (glfwGetKey(_window, GLFW_KEY_S))
         camera.processInput(CameraMovement::PitchDown, deltaTime);
 
     // yaw left/right
-    if (glfwGetKey(window, GLFW_KEY_A))
+    if (glfwGetKey(_window, GLFW_KEY_A))
         camera.processInput(CameraMovement::YawLeft, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_D))
+    if (glfwGetKey(_window, GLFW_KEY_D))
         camera.processInput(CameraMovement::YawRight, deltaTime);
 
-    if (glfwGetKey(window, GLFW_KEY_Q))
+    if (glfwGetKey(_window, GLFW_KEY_Q))
         camera.processInput(CameraMovement::RollLeft, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_E))
+    if (glfwGetKey(_window, GLFW_KEY_E))
         camera.processInput(CameraMovement::RollRight, deltaTime);
 
-    if (glfwGetKey(window, GLFW_KEY_SPACE)) {
+    if (glfwGetKey(_window, GLFW_KEY_SPACE)) {
         camera.orientation.orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
         camera.position = { 0.0f, 0.0f, 3.0f };
     }
@@ -939,9 +936,9 @@ void Application::cleanup() {
     shadowMap.cleanupShadowMap();
 
     // destroy whatever is dependent on the old swap chain
-    vkFreeCommandBuffers(vkSetup.device, renderCommandPool, static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data());
-    vkFreeCommandBuffers(vkSetup.device, imGuiCommandPool, static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data());
-    vkFreeCommandBuffers(vkSetup.device, renderCommandPool, static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data());
+    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::RENDER], static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data());
+    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::RENDER], static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data());
+    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::GUI], static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data());
 
     // call the function we created for destroying the swap chain and frame buffers
     // in the reverse order of their creation
@@ -950,28 +947,25 @@ void Application::cleanup() {
     swapChain.cleanupSwapChain();
 
     // cleanup the descriptor pools and descriptor set layouts
-    vkDestroyDescriptorPool(vkSetup.device, descriptorPool, nullptr);
-    vkDestroyDescriptorSetLayout(vkSetup.device, descriptorSetLayout, nullptr);
+    vkDestroyDescriptorPool(_renderer._context.device, descriptorPool, nullptr);
+    vkDestroyDescriptorSetLayout(_renderer._context.device, descriptorSetLayout, nullptr);
 
     // destroy the index and vertex buffers
-    indexBuffer.cleanupBufferData(vkSetup.device);
-    vertexBuffer.cleanupBufferData(vkSetup.device);
+    indexBuffer.cleanupBufferData(_renderer._context.device);
+    vertexBuffer.cleanupBufferData(_renderer._context.device);
 
     // loop over each frame and destroy its semaphores and fences
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        vkDestroySemaphore(vkSetup.device, renderFinishedSemaphores[i], nullptr);
-        vkDestroySemaphore(vkSetup.device, imageAvailableSemaphores[i], nullptr);
-        vkDestroySemaphore(vkSetup.device, offScreenSemaphores[i], nullptr);
-        vkDestroyFence(vkSetup.device, inFlightFences[i], nullptr);
+        vkDestroySemaphore(_renderer._context.device, renderFinishedSemaphores[i], nullptr);
+        vkDestroySemaphore(_renderer._context.device, imageAvailableSemaphores[i], nullptr);
+        vkDestroySemaphore(_renderer._context.device, offScreenSemaphores[i], nullptr);
+        vkDestroyFence(_renderer._context.device, inFlightFences[i], nullptr);
     }
 
-    vkDestroyCommandPool(vkSetup.device, renderCommandPool, nullptr);
-    vkDestroyCommandPool(vkSetup.device, imGuiCommandPool, nullptr);
-
-    vkSetup.cleanupSetup();
+    _renderer.cleanup();
 
     // destory the window
-    glfwDestroyWindow(window);
+    glfwDestroyWindow(_window);
 
     // terminate glfw
     glfwTerminate();

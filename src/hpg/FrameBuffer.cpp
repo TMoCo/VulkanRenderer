@@ -15,7 +15,7 @@
 //
 //////////////////////
 
-void FrameBuffer::createFrameBuffer(VulkanSetup* pVkSetup, const SwapChain* swapChainData, const VkCommandPool& commandPool) {
+void FrameBuffer::createFrameBuffer(VulkanContext* pVkSetup, const SwapChain* swapChainData, const VkCommandPool& commandPool) {
     // update the pointer to the setup data rather than passing as argument to functions
     vkSetup = pVkSetup;
     // first create the depth resource

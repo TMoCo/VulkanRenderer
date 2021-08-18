@@ -224,6 +224,16 @@ namespace vkinit {
     //-COMMAND BUFFER STRUCTS------------------------------------------------------------------------------------//
     //-----------------------------------------------------------------------------------------------------------//
 
+    VkCommandPoolCreateInfo commandPoolCreateInfo(
+        UI32 queueFamilyIndex,
+        VkCommandPoolCreateFlags flags) {
+        VkCommandPoolCreateInfo commandPoolCreateInfo{};
+        commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        commandPoolCreateInfo.queueFamilyIndex = queueFamilyIndex;
+        commandPoolCreateInfo.flags = flags;
+        return commandPoolCreateInfo;
+    }
+
     VkCommandBufferBeginInfo commandBufferBeginInfo(
         VkCommandBufferResetFlags flags) {
         VkCommandBufferBeginInfo commandBufferBegin{};

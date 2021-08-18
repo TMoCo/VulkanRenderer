@@ -111,6 +111,10 @@ namespace vkinit {
     //-COMMAND BUFFER STRUCTS------------------------------------------------------------------------------------//
     //-----------------------------------------------------------------------------------------------------------//
     
+    VkCommandPoolCreateInfo commandPoolCreateInfo(
+        UI32 queueFamilyIndex, 
+        VkCommandPoolCreateFlags flags);
+
     VkCommandBufferBeginInfo commandBufferBeginInfo(
         VkCommandBufferResetFlags flags = 0);
  
@@ -118,10 +122,15 @@ namespace vkinit {
     //-IMAGE STRUCTS---------------------------------------------------------------------------------------------//
     //-----------------------------------------------------------------------------------------------------------//
 
-    VkImageViewCreateInfo imageViewCreateInfo(VkImage image, VkImageViewType type, VkFormat format,
-        VkComponentMapping componentMapping, VkImageSubresourceRange subresourceRange);
+    VkImageViewCreateInfo imageViewCreateInfo(
+        VkImage image, 
+        VkImageViewType type, 
+        VkFormat format,
+        VkComponentMapping componentMapping, 
+        VkImageSubresourceRange subresourceRange);
 
-    VkSamplerCreateInfo samplerCreateInfo(F32 maxAnisotropy = 1.0f);
+    VkSamplerCreateInfo samplerCreateInfo(
+        F32 maxAnisotropy = 1.0f);
 }
 
 

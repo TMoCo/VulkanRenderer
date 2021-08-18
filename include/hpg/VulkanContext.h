@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////
-// VulkanSetup class declaration
+// VulkanContext class declaration
 ///////////////////////////////////////////////////////
 
 // 
@@ -14,8 +14,8 @@
 // for convenience.
 //
 
-#ifndef VULKAN_SETUP_H
-#define VULKAN_SETUP_H
+#ifndef VULKAN_CONTEXT_H
+#define VULKAN_CONTEXT_H
 
 // constants and structs
 #include <utils/Utils.h>
@@ -29,11 +29,11 @@
 #include <GLFW/glfw3.h>
 
 
-class VulkanSetup {
+class VulkanContext {
 public:
     //-Initialisation and cleanup--------------------------------------------------------------------------------//
-    void initSetup(GLFWwindow* window);
-    void cleanupSetup();
+    void init(GLFWwindow* window);
+    void cleanup();
 
 private:
     //-Vulkan instance-------------------------------------------------------------------------------------------//
@@ -78,5 +78,5 @@ public:
     VkPhysicalDeviceProperties deviceProperties;
 };
 
-#endif // !VULKAN_SETUP_H
+#endif // !VULKAN_CONTEXT_H
 

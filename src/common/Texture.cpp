@@ -11,69 +11,69 @@
 #include <stb_image.h>
 
 
-void Texture::createTexture(VulkanSetup* pVkSetup, const VkCommandPool& commandPool, const ImageData& imageData) {
+void Texture::createTexture(VulkanContext* pVkSetup, const VkCommandPool& commandPool, const ImageData& imageData) {
     vkSetup = pVkSetup;
 
-    VulkanBuffer stagingBuffer; // staging buffer containing image in host memory
+    Buffer stagingBuffer; // staging buffer containing image in host memory
 
-    VulkanBuffer::CreateInfo createInfo{};
-    createInfo.size = imageData.pixels.size;
+    Buffer::CreateInfo createInfo{};
+    createInfo.size = imageData.pixels._size;
     createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     createInfo.properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    createInfo.pVulkanBuffer = &stagingBuffer;
+    createInfo.pBuffer = &stagingBuffer;
 
-    VulkanBuffer::createBuffer(vkSetup, &createInfo);
+    Buffer::createBuffer(vkSetup, &createInfo);
 
     void* data;
-    vkMapMemory(vkSetup->device, stagingBuffer.memory, 0, imageData.pixels.size, 0, &data);
-    memcpy(data, imageData.pixels.data, imageData.pixels.size);
-    vkUnmapMemory(vkSetup->device, stagingBuffer.memory);
+    vkMapMemory(vkSetup->device, stagingBuffer._memory, 0, imageData.pixels._size, 0, &data);
+    memcpy(data, imageData.pixels._data, imageData.pixels._size);
+    vkUnmapMemory(vkSetup->device, stagingBuffer._memory);
 
     // create the image and its memory
-    VulkanImage::ImageCreateInfo imgCreateInfo{};
+    Image::ImageCreateInfo imgCreateInfo{};
     imgCreateInfo.width = imageData.width;
     imgCreateInfo.height = imageData.height;
     imgCreateInfo.format = imageData.format;
     imgCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imgCreateInfo.usage = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     imgCreateInfo.properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    imgCreateInfo.pVulkanImage = &textureImage;
+    imgCreateInfo.pImage = &textureImage;
 
-    VulkanImage::createImage(vkSetup, commandPool, imgCreateInfo);
+    Image::createImage(vkSetup, commandPool, imgCreateInfo);
 
     // copy host data to device
-    VulkanImage::LayoutTransitionInfo transitionData{};
-    transitionData.pVulkanImage = &textureImage;
+    Image::LayoutTransitionInfo transitionData{};
+    transitionData.pImage = &textureImage;
     transitionData.renderCommandPool = commandPool;
     transitionData.format = imageData.format;
     transitionData.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     transitionData.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 
-    VulkanImage::transitionImageLayout(vkSetup, transitionData); // specify the initial layout VK_IMAGE_LAYOUT_UNDEFINED
+    Image::transitionImageLayout(vkSetup, transitionData); // specify the initial layout VK_IMAGE_LAYOUT_UNDEFINED
 
     // need to specify which parts of the buffer we are going to copy to which part of the image
     std::vector<VkBufferImageCopy> regions = {
         { 0, 0, 0, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 }, { 0, 0, 0 }, { imageData.width, imageData.height, 1 } }
     };
 
-    VulkanBuffer::copyBufferToImage(vkSetup, commandPool, stagingBuffer.buffer, textureImage.image, regions);
+    Buffer::copyBufferToImage(vkSetup, commandPool, stagingBuffer._vkBuffer, textureImage._vkImage, regions);
 
     // need another transfer to give the shader access to the texture
-    transitionData.pVulkanImage = &textureImage;
+    transitionData.pImage = &textureImage;
     transitionData.renderCommandPool = commandPool;
     transitionData.format = imageData.format;
     transitionData.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     transitionData.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    VulkanImage::transitionImageLayout(vkSetup, transitionData);
+    Image::transitionImageLayout(vkSetup, transitionData);
 
     // cleanup the staging buffer and its memory
     stagingBuffer.cleanupBufferData(vkSetup->device);
 
     // then create the image view
-    VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(textureImage.image,
+    VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(textureImage._vkImage,
         VK_IMAGE_VIEW_TYPE_2D, imageData.format, {}, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
-    textureImageView = VulkanImage::createImageView(vkSetup, imageViewCreateInfo);
+    textureImageView = Image::createImageView(vkSetup, imageViewCreateInfo);
 
     // create the sampler
     createTextureSampler();
