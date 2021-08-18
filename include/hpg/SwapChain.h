@@ -33,6 +33,8 @@ public:
     void init(VulkanContext* pVkSetup);
     void cleanup();
 
+    VkSwapchainKHR get();
+
     static SupportDetails querySwapChainSupport(VulkanContext* pVkContext);
 
 private:
@@ -42,13 +44,11 @@ private:
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
-    // TODO: move render pass and pipelines outside of swap chain
+    // TODO: move render pass outside of swap chain (merge with other renderpasses)
     //-Render passes---------------------------------------------------------------------------------------------//    
     void createRenderPass();
     void createImGuiRenderPass();
     
-    //-Pipelines-------------------------------------------------------------------------------------------------//  
-    void createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout);
 
 public:
     //-Members---------------------------------------------------------------------------------------------------//    
@@ -68,9 +68,6 @@ public:
 
     VkRenderPass _renderPass;
     VkRenderPass _guiRenderPass;
-
-    VkPipelineLayout _pipelineLayout;
-    VkPipeline       _pipeline;
 };
 
 #endif // !VULKAN_SWAP_CHAIN_H

@@ -42,10 +42,6 @@ void SwapChain::init(VulkanContext* pVkContext) {
 }
 
 void SwapChain::cleanup() {
-    // destroy pipeline and related data
-    vkDestroyPipeline(_vkContext->device, _pipeline, nullptr);
-    vkDestroyPipelineLayout(_vkContext->device, _pipelineLayout, nullptr);
-
     // destroy the render passes
     vkDestroyRenderPass(_vkContext->device, _renderPass, nullptr);
     vkDestroyRenderPass(_vkContext->device, _guiRenderPass, nullptr);
@@ -58,6 +54,10 @@ void SwapChain::cleanup() {
 
     // destroy the swap chain proper
     vkDestroySwapchainKHR(_vkContext->device, _swapChain, nullptr);
+}
+
+VkSwapchainKHR SwapChain::get() {
+    return _swapChain;
 }
 
 void SwapChain::createSwapChain() {
@@ -239,8 +239,8 @@ void SwapChain::createRenderPass() {
     dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass    = 0;
     dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dependency.srcAccessMask = 0;
+    dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
     /*

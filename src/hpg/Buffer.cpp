@@ -4,7 +4,8 @@
 
 #include <hpg/Buffer.h>
 
-#include <utils/Utils.h>
+#include <utils/utils.h>
+#include <utils/vkinit.h>
 
 void Buffer::cleanupBufferData(const VkDevice& device) {
     vkDestroyBuffer(device, _vkBuffer, nullptr);
@@ -21,40 +22,34 @@ void Buffer::copyBufferToImage(const VulkanContext* vkSetup, const VkCommandPool
     utils::endSingleTimeCommands(&vkSetup->device, &vkSetup->graphicsQueue, &commandBuffer, &renderCommandPool);
 }
 
-void Buffer::createBuffer(const VulkanContext* vkSetup, Buffer::CreateInfo* bufferCreateInfo) {
+void Buffer::createBuffer(const VulkanContext* vkSetup, Buffer::CreateInfo* createInfo) {
     // fill in the corresponding struct
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = bufferCreateInfo->size; // allocate a buffer of the right size in bytes
-    bufferInfo.usage = bufferCreateInfo->usage; // what the data in the buffer is used for
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // buffers can be owned by a single queue or shared between many
-    // bufferInfo.flags = 0; // to configure sparse memory
-
+    VkBufferCreateInfo bufferCreateInfo = vkinit::bufferCreateInfo(createInfo->size, createInfo->usage);
     // attempt to create a buffer
-    if (vkCreateBuffer(vkSetup->device, &bufferInfo, nullptr, &bufferCreateInfo->pBuffer->_vkBuffer) != VK_SUCCESS) {
+    if (vkCreateBuffer(vkSetup->device, &bufferCreateInfo, nullptr, &createInfo->pBuffer->_vkBuffer) != VK_SUCCESS) {
         throw std::runtime_error("failed to create vertex buffer!");
     }
 
     // created a buffer, but haven't assigned any memory yet, also get the right memory requirements
     VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(vkSetup->device, bufferCreateInfo->pBuffer->_vkBuffer, &memRequirements);
+    vkGetBufferMemoryRequirements(vkSetup->device, createInfo->pBuffer->_vkBuffer, &memRequirements);
 
     // allocate the memory for the buffer
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = utils::findMemoryType(&vkSetup->physicalDevice, memRequirements.memoryTypeBits, bufferCreateInfo->properties);
+    allocInfo.memoryTypeIndex = utils::findMemoryType(&vkSetup->physicalDevice, memRequirements.memoryTypeBits, createInfo->properties);
 
     // allocate memory for the buffer. In a real world application, not supposed to actually call vkAllocateMemory for every individual buffer. 
     // The maximum number of simultaneous memory allocations is limited by the maxMemoryAllocationCount physical device limit. The right way to 
     // allocate memory for large number of objects at the same time is to create a custom allocator that splits up a single allocation among many 
     // different objects by using the offset parameters seen in other functions
-    if (vkAllocateMemory(vkSetup->device, &allocInfo, nullptr, &bufferCreateInfo->pBuffer->_memory) != VK_SUCCESS) {
+    if (vkAllocateMemory(vkSetup->device, &allocInfo, nullptr, &createInfo->pBuffer->_memory) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate vertex buffer memory!");
     }
 
     // associate memory with buffer
-    vkBindBufferMemory(vkSetup->device, bufferCreateInfo->pBuffer->_vkBuffer, bufferCreateInfo->pBuffer->_memory, 0);
+    vkBindBufferMemory(vkSetup->device, createInfo->pBuffer->_vkBuffer, createInfo->pBuffer->_memory, 0);
 }
 
 void Buffer::copyBuffer(const VulkanContext* vkSetup, const VkCommandPool& commandPool, Buffer::CopyInfo* bufferCopyInfo) {

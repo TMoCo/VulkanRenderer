@@ -104,9 +104,6 @@ void Application::initVulkan() {
     // swap chain independent
     createDescriptorSetLayout();
 
-    // swap chain
-    // swapChain.init(&_renderer._context);
-
     // swap chain dependent
     frameBuffer.createFrameBuffer(&_renderer._context, &_renderer._swapChain, _renderer._commandPools[kCmdPools::RENDER]);
     gBuffer.createGBuffer(&_renderer._context, &_renderer._swapChain, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
@@ -123,8 +120,6 @@ void Application::initVulkan() {
     createCommandBuffers(_renderer._swapChain._imageCount, offScreenCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
 
     createCommandBuffers(_renderer._swapChain._imageCount, imGuiCommandBuffers.data(), _renderer._commandPools[kCmdPools::GUI]);
-
-    createSyncObjects();
 
     // record commands
     for (UI32 i = 0; i < _renderer._swapChain._imageCount; i++) {
@@ -420,13 +415,8 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
 
 // Command buffers
 
-void Application::createCommandBuffers(uint32_t count, VkCommandBuffer* commandBuffers, VkCommandPool& commandPool) {
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool        = commandPool;
-    allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY; 
-    allocInfo.commandBufferCount = count;
-
+void Application::createCommandBuffers(UI32 count, VkCommandBuffer* commandBuffers, VkCommandPool& commandPool) {
+    VkCommandBufferAllocateInfo allocInfo = vkinit::commaneBufferAllocateInfo(commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, count);
     if (vkAllocateCommandBuffers(_renderer._context.device, &allocInfo, commandBuffers) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate command buffers!");
     }
@@ -439,14 +429,9 @@ void Application::buildCompositionCommandBuffer(UI32 cmdBufferIndex) {
     clearValues[0].color           = { 0.0f, 0.0f, 0.0f, 1.0f };
     clearValues[1].depthStencil    = { 1.0f, 0 };
 
-    VkRenderPassBeginInfo renderPassBeginInfo{};
-    renderPassBeginInfo.sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassBeginInfo.renderPass        = _renderer._swapChain._renderPass;
-    renderPassBeginInfo.framebuffer       = frameBuffer.framebuffers[cmdBufferIndex];
-    renderPassBeginInfo.renderArea.offset = { 0, 0 };
-    renderPassBeginInfo.renderArea.extent = _renderer._swapChain._extent;
-    renderPassBeginInfo.clearValueCount   = static_cast<uint32_t>(clearValues.size());
-    renderPassBeginInfo.pClearValues      = clearValues.data();
+    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._swapChain._renderPass,
+        frameBuffer.framebuffers[cmdBufferIndex], _renderer._swapChain._extent, static_cast<UI32>(clearValues.size()),
+        clearValues.data());
 
     // implicitly resets cmd buffer
     if (vkBeginCommandBuffer(renderCommandBuffers[cmdBufferIndex], &commandBufferBeginInfo) != VK_SUCCESS) {
@@ -477,14 +462,8 @@ void Application::buildGuiCommandBuffer(UI32 cmdBufferIndex) {
     clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f }; // completely opaque clear value
 
     // begin the render pass
-    VkRenderPassBeginInfo renderPassBeginInfo = {};
-    renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassBeginInfo.renderPass               = _renderer._swapChain._guiRenderPass;
-    renderPassBeginInfo.framebuffer              = frameBuffer.imGuiFramebuffers[cmdBufferIndex];
-    renderPassBeginInfo.renderArea.extent.width  = _renderer._swapChain._extent.width;
-    renderPassBeginInfo.renderArea.extent.height = _renderer._swapChain._extent.height;
-    renderPassBeginInfo.clearValueCount          = 1;
-    renderPassBeginInfo.pClearValues = &clearValue;
+    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._swapChain._guiRenderPass,
+        frameBuffer.imGuiFramebuffers[cmdBufferIndex], _renderer._swapChain._extent, 1, &clearValue);
 
     vkCmdBeginRenderPass(imGuiCommandBuffers[cmdBufferIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
     ImGui::Render();
@@ -506,13 +485,8 @@ void Application::buildOffscreenCommandBuffer(UI32 cmdBufferIndex) {
     clearValues[2].color = { 0.0f, 0.0f, 0.0f, 0.0f };
     clearValues[3].depthStencil = { 1.0f, 0 };
 
-    VkRenderPassBeginInfo renderPassBeginInfo{};
-    renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassBeginInfo.renderPass        = gBuffer.deferredRenderPass;
-    renderPassBeginInfo.framebuffer       = gBuffer.deferredFrameBuffer;
-    renderPassBeginInfo.renderArea.extent = gBuffer.extent;
-    renderPassBeginInfo.clearValueCount   = static_cast<uint32_t>(clearValues.size());
-    renderPassBeginInfo.pClearValues      = clearValues.data();
+    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(gBuffer.deferredRenderPass,
+        gBuffer.deferredFrameBuffer, gBuffer.extent, static_cast<uint32_t>(clearValues.size()), clearValues.data());
 
     // implicitly resets cmd buffer
     if (vkBeginCommandBuffer(offScreenCommandBuffers[cmdBufferIndex], &commandBufferBeginInfo) != VK_SUCCESS) {
@@ -551,13 +525,8 @@ void Application::buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer) {
     VkClearValue clearValue{};
     clearValue.depthStencil = { 1.0f, 0 };
 
-    VkRenderPassBeginInfo renderPassBeginInfo{};
-    renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassBeginInfo.renderPass = shadowMap.shadowMapRenderPass;
-    renderPassBeginInfo.framebuffer = shadowMap.shadowMapFrameBuffer;
-    renderPassBeginInfo.renderArea.extent = { shadowMap.extent, shadowMap.extent };
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &clearValue;
+    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(shadowMap.shadowMapRenderPass, 
+        shadowMap.shadowMapFrameBuffer, { shadowMap.extent, shadowMap.extent }, 1, &clearValue);
 
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -588,7 +557,6 @@ void Application::buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer) {
         throw std::runtime_error("failed to record command buffer!");
     }
 }
-
 
 
 void Application::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout) {
@@ -666,33 +634,6 @@ void Application::framebufferResizeCallback(GLFWwindow* window, int width, int h
 
 // Synchronisation
 
-void Application::createSyncObjects() {
-    imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    offScreenSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-
-    inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-    imagesInFlight.resize(_renderer._swapChain._imageCount, VK_NULL_HANDLE);
-
-    VkSemaphoreCreateInfo semaphoreInfo{};
-    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-    VkFenceCreateInfo fenceInfo{};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // initialise in the signaled state
-
-    // simply loop over each frame and create semaphores for them
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        if (vkCreateSemaphore(_renderer._context.device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(_renderer._context.device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(_renderer._context.device, &semaphoreInfo, nullptr, &offScreenSemaphores[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create semaphores!");
-        }
-        if (vkCreateFence(_renderer._context.device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create fences!");
-        }
-    }
-}
 
 //
 // Main loop 
@@ -738,10 +679,10 @@ void Application::drawFrame() {
     /*************************************************************************************************************/
 
     // previous frame finished will fence
-    vkWaitForFences(_renderer._context.device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+    vkWaitForFences(_renderer._context.device, 1, &_renderer._inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
     VkResult result = vkAcquireNextImageKHR(_renderer._context.device, _renderer._swapChain._swapChain, UINT64_MAX,
-        imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex); 
+        _renderer._imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         recreateVulkanData();
@@ -751,11 +692,11 @@ void Application::drawFrame() {
         throw std::runtime_error("failed to acquire swap chain image!");
     }
 
-    if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) { // Check if a previous frame is using this image
-        vkWaitForFences(_renderer._context.device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+    if (_renderer._imagesInFlight[imageIndex] != VK_NULL_HANDLE) { // Check if a previous frame is using this image
+        vkWaitForFences(_renderer._context.device, 1, &_renderer._imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
     }
 
-    imagesInFlight[imageIndex] = inFlightFences[currentFrame]; // set image as in use by current frame
+    _renderer._imagesInFlight[imageIndex] = _renderer._inFlightFences[currentFrame]; // set image as in use by current frame
 
     updateUniformBuffers(imageIndex);
 
@@ -768,10 +709,10 @@ void Application::drawFrame() {
 
     // offscreen rendering (scene data for gbuffer and shadow map)
     submitInfo.waitSemaphoreCount   = 1;
-    submitInfo.pWaitSemaphores      = &imageAvailableSemaphores[currentFrame];
+    submitInfo.pWaitSemaphores      = &_renderer._imageAvailableSemaphores[currentFrame];
 
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores    = &offScreenSemaphores[currentFrame];
+    submitInfo.pSignalSemaphores    = &_renderer._offScreenSemaphores[currentFrame];
     
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers    = &offScreenCommandBuffers[currentFrame];
@@ -782,22 +723,22 @@ void Application::drawFrame() {
 
     // scene and Gui rendering
     submitInfo.waitSemaphoreCount   = 1;
-    submitInfo.pWaitSemaphores      = &offScreenSemaphores[currentFrame];
+    submitInfo.pWaitSemaphores      = &_renderer._offScreenSemaphores[currentFrame];
 
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores    = &renderFinishedSemaphores[currentFrame];
+    submitInfo.pSignalSemaphores    = &_renderer._renderFinishedSemaphores[currentFrame];
 
     std::array<VkCommandBuffer, 2> submitCommandBuffers = { renderCommandBuffers[imageIndex], imGuiCommandBuffers[imageIndex] };
     submitInfo.commandBufferCount = static_cast<uint32_t>(submitCommandBuffers.size());
     submitInfo.pCommandBuffers    = submitCommandBuffers.data();
 
     // reset the fence so fence blocks when submitting 
-    vkResetFences(_renderer._context.device, 1, &inFlightFences[currentFrame]); 
+    vkResetFences(_renderer._context.device, 1, &_renderer._inFlightFences[currentFrame]);
 
     // submit the command buffer to the graphics queue, takes an array of submitinfo when work load is much larger
     // last param is a fence, which is signaled when the cmd buffer finishes executing and is used to inform that the frame has finished
     // being rendered (the commands were all executed). The next frame can start rendering!
-    if (vkQueueSubmit(_renderer._context.graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
+    if (vkQueueSubmit(_renderer._context.graphicsQueue, 1, &submitInfo, _renderer._inFlightFences[currentFrame]) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
 
@@ -806,7 +747,7 @@ void Application::drawFrame() {
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores    = &renderFinishedSemaphores[currentFrame];
+    presentInfo.pWaitSemaphores    = &_renderer._renderFinishedSemaphores[currentFrame];
 
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains    = &_renderer._swapChain._swapChain;
@@ -851,10 +792,10 @@ void Application::setGUI() {
 
 // Uniforms
 
-void Application::updateUniformBuffers(uint32_t currentImage) {
+void Application::updateUniformBuffers(UI32 currentImage) {
 
     // offscreen ubo
-    glm::mat4 proj = glm::perspective(glm::radians(45.0f), _renderer._swapChain._aspectRatio, 0.1f, 40.0f);
+    glm::mat4 proj = glm::perspective(glm::radians(45.0f), _renderer.aspectRatio(), 0.1f, 40.0f);
     proj[1][1] *= -1.0f; // y coordinates inverted, Vulkan origin top left vs OpenGL bottom left
 
     glm::mat4 model = glm::translate(glm::mat4(1.0f), translate);
@@ -1005,14 +946,6 @@ void Application::cleanup() {
     // destroy the index and vertex buffers
     indexBuffer.cleanupBufferData(_renderer._context.device);
     vertexBuffer.cleanupBufferData(_renderer._context.device);
-
-    // loop over each frame and destroy its semaphores and fences
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        vkDestroySemaphore(_renderer._context.device, renderFinishedSemaphores[i], nullptr);
-        vkDestroySemaphore(_renderer._context.device, imageAvailableSemaphores[i], nullptr);
-        vkDestroySemaphore(_renderer._context.device, offScreenSemaphores[i], nullptr);
-        vkDestroyFence(_renderer._context.device, inFlightFences[i], nullptr);
-    }
 
     _renderer.cleanup();
 

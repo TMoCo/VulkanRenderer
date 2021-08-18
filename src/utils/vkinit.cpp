@@ -242,6 +242,18 @@ namespace vkinit {
         return commandBufferBegin;
     }
 
+    VkCommandBufferAllocateInfo commaneBufferAllocateInfo(
+        VkCommandPool commandPool,
+        VkCommandBufferLevel level,
+        UI32 commandBufferCount) {
+        VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
+        commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        commandBufferAllocateInfo.commandPool = commandPool;
+        commandBufferAllocateInfo.level = level;
+        commandBufferAllocateInfo.commandBufferCount = commandBufferCount;
+        return commandBufferAllocateInfo;
+    }
+
     //-----------------------------------------------------------------------------------------------------------//
     //-IMAGE STRUCTS---------------------------------------------------------------------------------------------//
     //-----------------------------------------------------------------------------------------------------------//
@@ -261,38 +273,80 @@ namespace vkinit {
     VkSamplerCreateInfo samplerCreateInfo(F32 maxAnisotropy) {
         VkSamplerCreateInfo samplerCreateInfo{};
         samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-
-        // how to interpolate texels that are magnified or minified
         samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-        samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-        // addressing mode
+        samplerCreateInfo.minFilter = samplerCreateInfo.magFilter;
         samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerCreateInfo.addressModeV = samplerCreateInfo.addressModeU;
         samplerCreateInfo.addressModeW = samplerCreateInfo.addressModeW;
-        // VK_SAMPLER_ADDRESS_MODE_REPEAT: Repeat the texture when going beyond the image dimensions.
-        // VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT: Like repeat, but inverts the coordinates to mirror the image when going beyond the dimensions.
-        // VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : Take the color of the edge closest to the coordinate beyond the image dimensions.
-        // VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE : Like clamp to edge, but instead uses the edge opposite to the closest edge.
-        // VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER : Return a solid color when sampling beyond the dimensions of the image
-
-        // use unless performance is a concern
-        samplerCreateInfo.anisotropyEnable = VK_TRUE;
-        // limits texel samples that used to calculate final colours
-        samplerCreateInfo.maxAnisotropy = maxAnisotropy;
-        samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        // which coordinate system we want to use to address texels!
+        samplerCreateInfo.borderColor  = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerCreateInfo.anisotropyEnable = VK_TRUE; // use unless performance is a concern
+        samplerCreateInfo.maxAnisotropy    = maxAnisotropy; // limits texel samples used to calculate final colours
         samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-
-        // if comparison enabled, texels will be compared to a value and result is used in filtering (useful for shadow maps)
         samplerCreateInfo.compareEnable = VK_FALSE;
-        samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-
-        // mipmapping fields
+        samplerCreateInfo.compareOp    = VK_COMPARE_OP_ALWAYS;
         samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
         samplerCreateInfo.mipLodBias = 0.0f;
         samplerCreateInfo.minLod = 0.0f;
         samplerCreateInfo.maxLod = 0.0f;
-
         return samplerCreateInfo;
     }
+
+    //-----------------------------------------------------------------------------------------------------------//
+    //-BUFFER STRUCTS--------------------------------------------------------------------------------------------//
+    //-----------------------------------------------------------------------------------------------------------//
+
+    VkBufferCreateInfo bufferCreateInfo (
+        VkDeviceSize size,
+        VkBufferUsageFlags usage,
+        VkSharingMode mode,
+        VkBufferCreateFlags flags) {
+        VkBufferCreateInfo bufferCreateInfo{};
+        bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferCreateInfo.size  = size; // allocate a buffer of the right size in bytes
+        bufferCreateInfo.usage = usage; // what the data in the buffer is used for
+        bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        bufferCreateInfo.flags = flags;
+        return bufferCreateInfo;
+    }
+
+    //-----------------------------------------------------------------------------------------------------------//
+    //-RENDER PASS STRUCTS---------------------------------------------------------------------------------------//
+    //-----------------------------------------------------------------------------------------------------------//
+
+    VkRenderPassBeginInfo renderPassBeginInfo (
+        VkRenderPass renderPass,
+        VkFramebuffer frameBuffer,
+        VkExtent2D extent,
+        UI32 clearValueCount,
+        VkClearValue* pClearValues) {
+        VkRenderPassBeginInfo renderPassBeginInfo{};
+        renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassBeginInfo.renderPass = renderPass;
+        renderPassBeginInfo.framebuffer = frameBuffer;
+        renderPassBeginInfo.renderArea.extent = extent;
+        renderPassBeginInfo.clearValueCount = clearValueCount;
+        renderPassBeginInfo.pClearValues = pClearValues;
+        return renderPassBeginInfo;
+    }
+
+    //-----------------------------------------------------------------------------------------------------------//
+    //-SYNCHRONISATION STRUCTS-----------------------------------------------------------------------------------//
+    //-----------------------------------------------------------------------------------------------------------//
+
+    VkSemaphoreCreateInfo semaphoreCreateInfo (
+        VkSemaphoreCreateFlags flags) {
+        VkSemaphoreCreateInfo semaphoreCreateInfo{};
+        semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        semaphoreCreateInfo.flags = flags;
+        return semaphoreCreateInfo;
+    }
+
+    VkFenceCreateInfo fenceCreateInfo (
+        VkFenceCreateFlags flags) {
+        VkFenceCreateInfo fenceCreateInfo{};
+        fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceCreateInfo.flags = flags;
+        return fenceCreateInfo;
+    }
+    
 }

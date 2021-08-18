@@ -11,7 +11,7 @@
 
 #include <app/AppConstants.h>
 
-#include <utils/Utils.h>
+#include <utils/utils.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtx/quaternion.hpp>

@@ -18,7 +18,7 @@
 #define VULKAN_CONTEXT_H
 
 // constants and structs
-#include <utils/Utils.h>
+#include <utils/utils.h>
 
 // vulkan definitions
 #include <vulkan/vk_platform.h>

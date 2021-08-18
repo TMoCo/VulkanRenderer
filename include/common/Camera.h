@@ -11,7 +11,7 @@
 #define CAMERA_H
 
 
-#include <utils/Utils.h>
+#include <utils/utils.h>
 
 #include <common/Orientation.h>
 #include <common/types.h>

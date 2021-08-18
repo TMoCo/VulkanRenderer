@@ -73,10 +73,10 @@ private:
     void createDescriptorSets(UI32 swapChainImages);
 
     //-Update uniform buffer-------------------------------------------------------------------------------------//
-    void updateUniformBuffers(uint32_t currentImage);
+    void updateUniformBuffers(UI32 currentImage);
 
     //-Command buffer initialisation functions-------------------------------------------------------------------//
-    void createCommandBuffers(uint32_t count, VkCommandBuffer* commandBuffers, VkCommandPool& commandPool);
+    void createCommandBuffers(UI32 count, VkCommandBuffer* commandBuffers, VkCommandPool& commandPool);
 
     //-Record command buffers for rendering (geom and gui)-------------------------------------------------------//
     void buildCompositionCommandBuffer(UI32 cmdBufferIndex);
@@ -89,9 +89,6 @@ private:
 
     //-Window/Input Callbacks------------------------------------------------------------------------------------//
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
-
-    //-Sync structures-------------------------------------------------------------------------------------------//
-    void createSyncObjects();
 
     //-The main loop---------------------------------------------------------------------------------------------//
     void mainLoop();
@@ -152,13 +149,6 @@ public:
 
     //VkCommandPool imGuiCommandPool;
     std::vector<VkCommandBuffer> imGuiCommandBuffers;
-
-    std::vector<VkSemaphore> offScreenSemaphores;
-    std::vector<VkSemaphore> imageAvailableSemaphores; // 1 semaphore per frame, GPU-GPU sync
-    std::vector<VkSemaphore> renderFinishedSemaphores;
-
-    std::vector<VkFence> inFlightFences; // 1 fence per frame, CPU-GPU sync
-    std::vector<VkFence> imagesInFlight;
 
     glm::vec3 translate = glm::vec3(0.0f);
     glm::vec3 rotate = glm::vec3(0.0f);;

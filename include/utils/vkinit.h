@@ -117,7 +117,12 @@ namespace vkinit {
 
     VkCommandBufferBeginInfo commandBufferBeginInfo(
         VkCommandBufferResetFlags flags = 0);
- 
+
+    VkCommandBufferAllocateInfo commaneBufferAllocateInfo(
+        VkCommandPool commandPool,
+        VkCommandBufferLevel level,
+        UI32 commandBufferCount);
+
     //-----------------------------------------------------------------------------------------------------------//
     //-IMAGE STRUCTS---------------------------------------------------------------------------------------------//
     //-----------------------------------------------------------------------------------------------------------//
@@ -131,6 +136,37 @@ namespace vkinit {
 
     VkSamplerCreateInfo samplerCreateInfo(
         F32 maxAnisotropy = 1.0f);
+
+    //-----------------------------------------------------------------------------------------------------------//
+    //-BUFFER STRUCTS--------------------------------------------------------------------------------------------//
+    //-----------------------------------------------------------------------------------------------------------//
+
+    VkBufferCreateInfo bufferCreateInfo(
+        VkDeviceSize size,
+        VkBufferUsageFlags usage,
+        VkSharingMode mode = VK_SHARING_MODE_EXCLUSIVE,
+        VkBufferCreateFlags flags = 0);
+
+    //-----------------------------------------------------------------------------------------------------------//
+    //-RENDER PASS STRUCTS---------------------------------------------------------------------------------------//
+    //-----------------------------------------------------------------------------------------------------------//
+
+    VkRenderPassBeginInfo renderPassBeginInfo(
+        VkRenderPass renderPass,
+        VkFramebuffer frameBuffer,
+        VkExtent2D extent,
+        UI32 clearValueCount,
+        VkClearValue* pClearValues);
+
+    //-----------------------------------------------------------------------------------------------------------//
+    //-SYNCHRONISATION STRUCTS-----------------------------------------------------------------------------------//
+    //-----------------------------------------------------------------------------------------------------------//
+
+    VkSemaphoreCreateInfo semaphoreCreateInfo(
+        VkSemaphoreCreateFlags flags = 0);
+
+    VkFenceCreateInfo fenceCreateInfo(
+        VkFenceCreateFlags flags = 0);
 }
 
 
