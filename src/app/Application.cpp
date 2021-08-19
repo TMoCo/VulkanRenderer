@@ -106,7 +106,7 @@ void Application::initVulkan() {
 
     // swap chain dependent
     gBuffer.createGBuffer(&_renderer._context, &_renderer._swapChain, &descriptorSetLayout, 
-        _renderer._commandPools[kCmdPools::RENDER], _renderer._renderPass);
+        _renderer._commandPools[kCmdPools::RENDER], _renderer._renderPass, _renderer._offscreenRenderPass);
     shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
 
     createDescriptorPool();
@@ -156,7 +156,7 @@ void Application::recreateVulkanData() {
 
     // create new swap chain etc...
     gBuffer.createGBuffer(&_renderer._context, &_renderer._swapChain, &descriptorSetLayout, 
-        _renderer._commandPools[kCmdPools::RENDER], _renderer._renderPass);
+        _renderer._commandPools[kCmdPools::RENDER], _renderer._renderPass, _renderer._offscreenRenderPass);
     shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
 
     createDescriptorSets(_renderer._swapChain.imageCount());
@@ -195,7 +195,7 @@ void Application::initImGui() {
     init_info.PipelineCache  = VK_NULL_HANDLE;
     init_info.DescriptorPool = descriptorPool;
     init_info.Allocator      = nullptr;
-    init_info.MinImageCount  = _renderer._swapChain.supportDetails().capabilities.minImageCount + 1;
+    init_info.MinImageCount  = _renderer._context._swapChainSupportDetails.capabilities.minImageCount + 1;
     init_info.ImageCount     = _renderer._swapChain.imageCount();
 
     // the imgui render pass
@@ -560,7 +560,6 @@ void Application::buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer) {
     }
 }
 
-
 void Application::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout) {
     VkShaderModule vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(FWD_VERT_SHADER));
     VkShaderModule fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(FWD_FRAG_SHADER));
@@ -624,7 +623,6 @@ void Application::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayo
     vkDestroyShaderModule(_renderer._context.device, vertShaderModule, nullptr);
 }
 
-
 // Handling window resize events
 
 void Application::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -633,9 +631,6 @@ void Application::framebufferResizeCallback(GLFWwindow* window, int width, int h
     // and set the resize flag to true
     app->framebufferResized = true;
 }
-
-// Synchronisation
-
 
 //
 // Main loop 

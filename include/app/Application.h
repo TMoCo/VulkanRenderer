@@ -23,7 +23,6 @@
 #include <hpg/Renderer.h>
 #include <hpg/VulkanContext.h>
 #include <hpg/SwapChain.h>
-#include <hpg/FrameBuffer.h>
 #include <hpg/GBuffer.h>
 #include <hpg/Buffer.h>
 #include <hpg/Skybox.h>
@@ -129,8 +128,6 @@ public:
     Plane floor;
     Cube cube;
 
-
-
     VkPipelineLayout _fwdPipelineLayout;
     VkPipeline       _fwdPipeline;
 
@@ -142,11 +139,9 @@ public:
     VkDescriptorSet skyboxDescriptorSet;
     VkDescriptorSet shadowMapDescriptorSet;
 
-    //VkCommandPool renderCommandPool;
     std::vector<VkCommandBuffer> offScreenCommandBuffers;
     std::vector<VkCommandBuffer> renderCommandBuffers;
 
-    //VkCommandPool imGuiCommandPool;
     std::vector<VkCommandBuffer> imGuiCommandBuffers;
 
     glm::vec3 translate = glm::vec3(0.0f);

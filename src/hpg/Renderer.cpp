@@ -2,11 +2,6 @@
 
 #include <utils/vkinit.h>
 
-void Renderer::Attachment::cleanup(VulkanContext* context) {
-    vkDestroyImageView(context->device, _view, nullptr);
-    _image.cleanupImage(context);
-}
-
 void Renderer::init(GLFWwindow* window) {
 	// setup vulkan context
 	_context.init(window);
@@ -16,11 +11,17 @@ void Renderer::init(GLFWwindow* window) {
 
     _swapChain.init(&_context);
 
+    // gbuffer attachments
+    createAttachment(_gbuffer[POSITION], 0x14, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
+    createAttachment(_gbuffer[NORMAL], 0x14, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
+    createAttachment(_gbuffer[ALBEDO], 0x14, _swapChain.extent(), VK_FORMAT_R8G8B8A8_SRGB);
+    createAttachment(_gbuffer[DEPTH], 0x24, _swapChain.extent(), utils::findDepthFormat(_context.physicalDevice));
+
     createFwdRenderPass();
     createGuiRenderPass();
+    createOffscreenRenderPass();
 
-    createAttachment(_depth, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, _swapChain.extent(), utils::findDepthFormat(_context.physicalDevice));
-    createFrambuffers();
+    createFramebuffers();
 
     createSyncObjects();
 
@@ -40,7 +41,9 @@ void Renderer::cleanup() {
         vkDestroyFramebuffer(_context.device, _guiFramebuffers[i], nullptr);
     }
 
-    _depth.cleanup(&_context);
+    for (auto& attachment : _gbuffer) {
+        attachment.cleanup(&_context);
+    }
 
     // destroy the render passes
     vkDestroyRenderPass(_context.device, _renderPass, nullptr);
@@ -61,16 +64,22 @@ void Renderer::recreateSwapchain() {
         vkDestroyFramebuffer(_context.device, _guiFramebuffers[i], nullptr);
     }
 
-    _depth.cleanup(&_context);
+    for (auto& attachment : _gbuffer) {
+        attachment.cleanup(&_context);
+    }
     
     _swapChain.cleanup();
 
     // recreate swapchain and dependencies
+
     _swapChain.init(&_context);
 
-    createAttachment(_depth, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, _swapChain.extent(), utils::findDepthFormat(_context.physicalDevice));
+    createAttachment(_gbuffer[POSITION], 0x14, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
+    createAttachment(_gbuffer[NORMAL], 0x14, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
+    createAttachment(_gbuffer[ALBEDO], 0x14, _swapChain.extent(), VK_FORMAT_R8G8B8A8_SRGB);
+    createAttachment(_gbuffer[DEPTH], 0x24, _swapChain.extent(), utils::findDepthFormat(_context.physicalDevice));
 
-    createFrambuffers();
+    createFramebuffers();
 }
 
 void Renderer::createCommandPool(VkCommandPool* commandPool, VkCommandPoolCreateFlags flags) {
@@ -106,20 +115,16 @@ void Renderer::createSyncObjects() {
     }
 }
 
-void Renderer::createFrambuffers() {
+void Renderer::createFramebuffers() {
     _framebuffers.resize(_swapChain.imageCount());
     _guiFramebuffers.resize(_swapChain.imageCount());
 
-    for (UI32 i = 0; i < _swapChain.imageCount(); i++) {
-        std::array<VkImageView, 2> attachments = {
-            _swapChain._imageViews[i],
-            //_depth._view
-        };
+    VkFramebufferCreateInfo framebufferCreateInfo; 
 
+    for (UI32 i = 0; i < _swapChain.imageCount(); i++) {
         // image framebuffer
-        VkFramebufferCreateInfo framebufferCreateInfo = vkinit::framebufferCreateInfo(_renderPass,
-            1, &attachments[0], _swapChain.extent(), 1); // only need colour attachment
-            //static_cast<UI32>(attachments.size()), attachments.data(), _swapChain.extent(), 1);
+        framebufferCreateInfo = vkinit::framebufferCreateInfo(_renderPass,
+            1, &_swapChain._imageViews[i], _swapChain.extent(), 1); // only need colour attachment
       
         if (vkCreateFramebuffer(_context.device, &framebufferCreateInfo, nullptr, &_framebuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("failed to create framebuffer!");
@@ -127,15 +132,28 @@ void Renderer::createFrambuffers() {
 
         // gui framebuffer
         framebufferCreateInfo = vkinit::framebufferCreateInfo(_guiRenderPass, 
-            1, &attachments[0], _swapChain.extent(), 1); // only need colour attachment
+            1, &_swapChain._imageViews[i], _swapChain.extent(), 1);
 
         if (vkCreateFramebuffer(_context.device, &framebufferCreateInfo, nullptr, &_guiFramebuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("failed to create framebuffer!");
         }
     }
+
+    // TODO: once render passes have been merged, remove extra framebuffer
+    std::array<VkImageView, NUM_ATTACHMENTS> gbufferViews{};
+    for (UI32 i = 0; i < NUM_ATTACHMENTS; i++) {
+        gbufferViews[i] = _gbuffer[i]._view;
+    }
+
+    framebufferCreateInfo = vkinit::framebufferCreateInfo(_offscreenRenderPass, 
+        NUM_ATTACHMENTS, gbufferViews.data(), _swapChain.extent(), 1);
+
+    if (vkCreateFramebuffer(_context.device, &framebufferCreateInfo, nullptr, &_offscreenFramebuffer) != VK_SUCCESS) {
+        throw std::runtime_error("Could not create GBuffer's frame buffer");
+    }
 }
 
-void Renderer::createAttachment(Renderer::Attachment& attachment, VkImageUsageFlagBits usage, VkExtent2D extent, VkFormat format) {
+void Renderer::createAttachment(Renderer::Attachment& attachment, VkImageUsageFlags usage, VkExtent2D extent, VkFormat format) {
     // create the image 
     Image::ImageCreateInfo info{};
     info.extent = extent;
@@ -302,5 +320,79 @@ void Renderer::createGuiRenderPass() {
 
     if (vkCreateRenderPass(_context.device, &info, nullptr, &_guiRenderPass) != VK_SUCCESS) {
         throw std::runtime_error("Could not create Dear ImGui's render pass");
+    }
+}
+
+void Renderer::createOffscreenRenderPass() {
+    // attachment descriptions and references
+    std::array<VkAttachmentDescription, NUM_ATTACHMENTS> attachmentDescriptions = {};
+
+    VkAttachmentDescription attachmentDescription{};
+    attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+    attachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    // color attachments
+    attachmentDescription.format = _gbuffer[POSITION]._format;
+    attachmentDescriptions[POSITION] = attachmentDescription;
+
+    attachmentDescription.format = _gbuffer[NORMAL]._format;
+    attachmentDescriptions[NORMAL] = attachmentDescription;
+
+    attachmentDescription.format = _gbuffer[ALBEDO]._format;
+    attachmentDescriptions[ALBEDO] = attachmentDescription;
+
+    // depth attachment
+    attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    attachmentDescription.format = _gbuffer[DEPTH]._format;
+    attachmentDescriptions[DEPTH] = attachmentDescription;
+
+    // attachment references
+    std::vector<VkAttachmentReference> colourReferences;
+    colourReferences.push_back({ POSITION, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
+    colourReferences.push_back({ NORMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
+    colourReferences.push_back({ ALBEDO, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
+
+    VkAttachmentReference depthReference = { DEPTH, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
+
+
+    VkSubpassDescription subpass{}; // create subpass
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.pColorAttachments = colourReferences.data();
+    subpass.colorAttachmentCount = static_cast<uint32_t>(colourReferences.size());
+    subpass.pDepthStencilAttachment = &depthReference;
+
+    std::array<VkSubpassDependency, 2> dependencies{}; // dependencies for attachment layout transition
+
+    dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[0].dstSubpass = 0;
+    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+    dependencies[1].srcSubpass = 0;
+    dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[1].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+    VkRenderPassCreateInfo renderPassInfo = {};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = static_cast<uint32_t>(attachmentDescriptions.size());
+    renderPassInfo.pAttachments    = attachmentDescriptions.data();
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses   = &subpass;
+    renderPassInfo.dependencyCount = 2;
+    renderPassInfo.pDependencies   = dependencies.data();
+
+    if (vkCreateRenderPass(_context.device, &renderPassInfo, nullptr, &_offscreenRenderPass) != VK_SUCCESS) {
+        throw std::runtime_error("Could not create GBuffer's render pass");
     }
 }

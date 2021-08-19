@@ -317,9 +317,9 @@ bool VulkanContext::isDeviceSuitable(VkPhysicalDevice device) {
     bool swapChainAdequate = false;
     if (extensionsSupported) { // if extension supported, in our case extension for the swap chain
         // find out more about the swap chain details
-        SwapChain::SupportDetails swapChainSupport = SwapChain::querySwapChainSupport(this);
+        querySwapChainSupport();
         // at least one supported image format and presentation mode is sufficient for now
-        swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+        swapChainAdequate = !_swapChainSupportDetails.formats.empty() && !_swapChainSupportDetails.presentModes.empty();
     }
 
     // get the device's supported features
@@ -410,4 +410,31 @@ void VulkanContext::createLogicalDevice() {
     vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
     // set the presentation queue handle like above
     vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+}
+
+void VulkanContext::querySwapChainSupport() {
+    // query the surface capabilities and store in a VkSurfaceCapabilities struct
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &_swapChainSupportDetails.capabilities);
+
+    // same as we have seen many times before
+    uint32_t formatCount;
+    // query the available formats, pass null ptr to just set the count
+    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
+
+    // if there are formats
+    if (formatCount != 0) {
+        // then resize the vector accordingly
+        _swapChainSupportDetails.formats.resize(formatCount);
+        // and set details struct fromats vector with the data pointer
+        vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, _swapChainSupportDetails.formats.data());
+    }
+
+    // exact same thing as format for presentation modes
+    uint32_t presentModeCount;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, nullptr);
+
+    if (presentModeCount != 0) {
+        _swapChainSupportDetails.presentModes.resize(presentModeCount);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, _swapChainSupportDetails.presentModes.data());
+    }
 }

@@ -22,13 +22,6 @@
 class SwapChain {
     friend class Renderer;
 public:
-    //-----------------------------------------------------------------------------------------------------------//
-    struct SupportDetails {
-        VkSurfaceCapabilitiesKHR        capabilities;
-        std::vector<VkSurfaceFormatKHR> formats;
-        std::vector<VkPresentModeKHR>   presentModes;
-    };
-public:
     //-Initialisation and cleanup--------------------------------------------------------------------------------//    
     void init(VulkanContext* pContext);
     void cleanup();
@@ -37,9 +30,6 @@ public:
     inline VkExtent2D extent() { return _extent; }
     inline VkFormat format() { return _format; }
     inline UI32 imageCount() { return _imageCount; }
-    inline SupportDetails supportDetails() { return _supportDetails; }
-
-    static SupportDetails querySwapChainSupport(VulkanContext* pContext);
 
 private:
     //-Swap chain creation helpers-------------------------------------------------------------------------------//    
@@ -61,8 +51,6 @@ public:
     UI32 _imageCount;
     std::vector<VkImage>     _images;
     std::vector<VkImageView> _imageViews;
-    
-    SupportDetails  _supportDetails;
 };
 
 #endif // !VULKAN_SWAP_CHAIN_H

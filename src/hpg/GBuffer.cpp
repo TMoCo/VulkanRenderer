@@ -9,10 +9,11 @@
 #include <app/AppConstants.h>
 
 void GBuffer::createGBuffer(VulkanContext* pVkSetup, SwapChain* swapChain, VkDescriptorSetLayout* descriptorSetLayout, 
-	const VkCommandPool& cmdPool, VkRenderPass renderPass) {
+	const VkCommandPool& cmdPool, VkRenderPass compositionRenderPass, VkRenderPass offscreenRenderPass) {
 	vkSetup = pVkSetup;
 	extent = swapChain->_extent; // get extent from swap chain
 
+	/*
 	createAttachment("position", VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, cmdPool);
 	createAttachment("normal", VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, cmdPool);
 	createAttachment("albedo", VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, cmdPool);
@@ -21,6 +22,7 @@ void GBuffer::createGBuffer(VulkanContext* pVkSetup, SwapChain* swapChain, VkDes
 	createRenderPass();
 
 	createFrameBuffer();
+	*/
 
 	createColourSampler();
 
@@ -31,7 +33,7 @@ void GBuffer::createGBuffer(VulkanContext* pVkSetup, SwapChain* swapChain, VkDes
 	Buffer::createUniformBuffer<GBuffer::CompositionUBO>(vkSetup, swapChain->_imageCount, 
 		&compositionUniforms, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-	createPipelines(descriptorSetLayout, swapChain, renderPass);
+	createPipelines(descriptorSetLayout, swapChain, compositionRenderPass, offscreenRenderPass);
 }
 
 void GBuffer::cleanupGBuffer() {
@@ -40,19 +42,21 @@ void GBuffer::cleanupGBuffer() {
 
 	vkDestroySampler(vkSetup->device, colourSampler, nullptr);
 	
-	vkDestroyFramebuffer(vkSetup->device, deferredFrameBuffer, nullptr);
+	//vkDestroyFramebuffer(vkSetup->device, deferredFrameBuffer, nullptr);
 
 	vkDestroyPipeline(vkSetup->device, deferredPipeline, nullptr);
 	vkDestroyPipeline(vkSetup->device, offScreenPipeline, nullptr);
 	vkDestroyPipeline(vkSetup->device, skyboxPipeline, nullptr);
 	vkDestroyPipelineLayout(vkSetup->device, layout, nullptr);
 
+	/*
 	vkDestroyRenderPass(vkSetup->device, deferredRenderPass, nullptr);
 
 	for (auto& attachment : attachments) {
 		vkDestroyImageView(vkSetup->device, attachment.second.imageView, nullptr);
 		attachment.second.image.cleanupImage(vkSetup);
 	}
+	*/
 }
 
 void GBuffer::createAttachment(const std::string& name, VkFormat format, VkImageUsageFlagBits usage, const VkCommandPool& cmdPool) {
@@ -197,7 +201,8 @@ void GBuffer::createColourSampler() {
 	}
 }
 
-void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapChain* swapChain, VkRenderPass renderPass) {
+void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapChain* swapChain, VkRenderPass compositionRenderPass, VkRenderPass offscreenRenderPass) {
+
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
 
 	if (vkCreatePipelineLayout(vkSetup->device, &pipelineLayoutCreateInfo, nullptr, &layout) != VK_SUCCESS) {
@@ -238,7 +243,7 @@ void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapCh
 	// shared between the offscreen and composition pipelines
 
 	VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-		vkinit::graphicsPipelineCreateInfo(layout, renderPass, 0); // composition pipeline uses swapchain render pass
+		vkinit::graphicsPipelineCreateInfo(layout, compositionRenderPass, 0); // composition pipeline uses swapchain render pass
 
 	pipelineCreateInfo.stageCount          = static_cast<uint32_t>(shaderStages.size());
 	pipelineCreateInfo.pStages             = shaderStages.data();
@@ -269,7 +274,7 @@ void GBuffer::createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapCh
 	vkDestroyShaderModule(vkSetup->device, fragShaderModule, nullptr);
 
 	// offscreen pipeline
-	pipelineCreateInfo.renderPass = deferredRenderPass;
+	pipelineCreateInfo.renderPass = offscreenRenderPass;
 
 	vertShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(OFF_VERT_SHADER));
 	fragShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(OFF_FRAG_SHADER));

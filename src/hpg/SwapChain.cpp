@@ -48,15 +48,16 @@ void SwapChain::cleanup() {
 }
 
 void SwapChain::createSwapChain() {
-    _supportDetails = querySwapChainSupport(_context); // is sc supported
+    _context->querySwapChainSupport();
 
-    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(_supportDetails.formats);
-    VkPresentModeKHR presentMode     = chooseSwapPresentMode(_supportDetails.presentModes);
-    VkExtent2D newExtent             = chooseSwapExtent(_supportDetails.capabilities);
+    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(_context->_swapChainSupportDetails.formats);
+    VkPresentModeKHR presentMode     = chooseSwapPresentMode(_context->_swapChainSupportDetails.presentModes);
+    VkExtent2D newExtent             = chooseSwapExtent(_context->_swapChainSupportDetails.capabilities);
 
-    _imageCount = _supportDetails.capabilities.minImageCount + 1; // + 1 to avoid waiting
-    if (_supportDetails.capabilities.maxImageCount > 0 && _imageCount > _supportDetails.capabilities.maxImageCount) {
-        _imageCount = _supportDetails.capabilities.maxImageCount;
+    _imageCount = _context->_swapChainSupportDetails.capabilities.minImageCount + 1; // + 1 to avoid waiting
+    if (_context->_swapChainSupportDetails.capabilities.maxImageCount > 0 &&
+        _imageCount > _context->_swapChainSupportDetails.capabilities.maxImageCount) {
+        _imageCount = _context->_swapChainSupportDetails.capabilities.maxImageCount;
     }
 
     _images.resize(_imageCount);
@@ -85,7 +86,7 @@ void SwapChain::createSwapChain() {
     }
 
     // a certain transform to apply to the image
-    createInfo.preTransform   = _supportDetails.capabilities.currentTransform;
+    createInfo.preTransform   = _context->_swapChainSupportDetails.capabilities.currentTransform;
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     createInfo.presentMode    = presentMode; // determined earlier
     createInfo.clipped        = VK_TRUE; // ignore obscured pixels
@@ -166,34 +167,4 @@ VkExtent2D SwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
 
         return actualExtent;
     }
-}
-
-SwapChain::SupportDetails SwapChain::querySwapChainSupport(VulkanContext* pVkContext) {
-    SwapChain::SupportDetails details;
-    // query the surface capabilities and store in a VkSurfaceCapabilities struct
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(pVkContext->physicalDevice, pVkContext->surface, &details.capabilities); 
-
-    // same as we have seen many times before
-    uint32_t formatCount;
-    // query the available formats, pass null ptr to just set the count
-    vkGetPhysicalDeviceSurfaceFormatsKHR(pVkContext->physicalDevice, pVkContext->surface, &formatCount, nullptr);
-
-    // if there are formats
-    if (formatCount != 0) {
-        // then resize the vector accordingly
-        details.formats.resize(formatCount);
-        // and set details struct fromats vector with the data pointer
-        vkGetPhysicalDeviceSurfaceFormatsKHR(pVkContext->physicalDevice, pVkContext->surface, &formatCount, details.formats.data());
-    }
-
-    // exact same thing as format for presentation modes
-    uint32_t presentModeCount;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(pVkContext->physicalDevice, pVkContext->surface, &presentModeCount, nullptr);
-
-    if (presentModeCount != 0) {
-        details.presentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(pVkContext->physicalDevice, pVkContext->surface, &presentModeCount, details.presentModes.data());
-    }
-
-    return details;
 }

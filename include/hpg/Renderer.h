@@ -7,7 +7,6 @@
 
 #include <hpg/VulkanContext.h>
 #include <hpg/SwapChain.h>
-#include <hpg/FrameBuffer.h>
 #include <hpg/GBuffer.h>
 
 #include <array>
@@ -18,11 +17,22 @@ enum kCmdPools {
 	NUM_POOLS
 };
 
+enum kGBuffer {
+	POSITION,
+	NORMAL,
+	ALBEDO,
+	DEPTH,
+	NUM_ATTACHMENTS
+};
+
 class Renderer {
 	//-Render pass attachment------------------------------------------------------------------------------------//    
 	class Attachment {
 	public:
-		void cleanup(VulkanContext* context);
+		inline void cleanup(VulkanContext* context) {
+			vkDestroyImageView(context->device, _view, nullptr);
+			_image.cleanupImage(context);
+		}
 
 		Image _image;
 		VkFormat _format;
@@ -39,13 +49,13 @@ public:
 private:
 	void createCommandPool(VkCommandPool* commandPool, VkCommandPoolCreateFlags flags);
 	void createSyncObjects();
-	void createFrambuffers();
-	void createAttachment(Attachment& attachment, VkImageUsageFlagBits usage, VkExtent2D extent, VkFormat format);
+	void createFramebuffers();
+	void createAttachment(Attachment& attachment, VkImageUsageFlags usage, VkExtent2D extent, VkFormat format);
 
-	// TODO: move render pass outside of swap chain (merge with other renderpasses)
-	//-Render passes---------------------------------------------------------------------------------------------//    
+	// TODO: merge renderpasses
 	void createFwdRenderPass();
 	void createGuiRenderPass();
+	void createOffscreenRenderPass(); 
 
 
 public:
@@ -61,15 +71,16 @@ public:
 	// frame buffers
 	std::vector<VkFramebuffer> _framebuffers;
 	std::vector<VkFramebuffer> _guiFramebuffers;
+	VkFramebuffer _offscreenFramebuffer;
 
 	// gbuffer
-	GBuffer _gbuffer;
-	Attachment _depth;
+	std::array<Attachment, NUM_ATTACHMENTS> _gbuffer;
 
 	// main render pass
 	// TODO: Merge render passes
 	VkRenderPass _renderPass;
 	VkRenderPass _guiRenderPass;
+	VkRenderPass _offscreenRenderPass;
 
 	// synchronisation
 	std::vector<VkSemaphore> _offScreenSemaphores;

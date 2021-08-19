@@ -31,9 +31,20 @@
 
 class VulkanContext {
 public:
-    //-Initialisation and cleanup--------------------------------------------------------------------------------//
+    //-----------------------------------------------------------------------------------------------------------//
+    struct SwapChainSupportDetails {
+        VkSurfaceCapabilitiesKHR        capabilities;
+        std::vector<VkSurfaceFormatKHR> formats;
+        std::vector<VkPresentModeKHR>   presentModes;
+    };
+
+public:
     void init(GLFWwindow* window);
     void cleanup();
+
+    //-Swap chain support----------------------------------------------------------------------------------------//
+    inline SwapChainSupportDetails supportDetails() { return _swapChainSupportDetails; }
+    void querySwapChainSupport();
 
 private:
     //-Vulkan instance-------------------------------------------------------------------------------------------//
@@ -60,6 +71,7 @@ private:
     bool checkDeviceExtensionSupport(VkPhysicalDevice device);
     void createLogicalDevice();
 
+
 public:
     //-Members---------------------------------------------------------------------------------------------------//
     GLFWwindow* window;
@@ -74,6 +86,8 @@ public:
     VkDevice         device;
     VkQueue          graphicsQueue;
     VkQueue          presentQueue;
+
+    SwapChainSupportDetails  _swapChainSupportDetails;
 
     VkPhysicalDeviceProperties deviceProperties;
 };
