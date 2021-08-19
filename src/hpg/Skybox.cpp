@@ -60,8 +60,6 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
     imageData.pixels._size = height * width * channels * 6; // 6 images of dimensions w x h with pixels of n channels
     imageData.pixels._data = (unsigned char*)malloc(imageData.pixels._size);
 
-    PRINT("size of array: %zi\n size of uc: %zi\n", imageData.pixels._size * sizeof(unsigned char), sizeof(unsigned char));
-
     if (!imageData.pixels._data) {
         throw std::runtime_error("Error, could not allocate memory!");
     }
@@ -111,11 +109,13 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
     // DEBUG looking at supported formats
     std::vector<VkFormat> formats = { VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R16G16B16_SFLOAT, VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_R8G8B8_SRGB };
 
+    /*
     for (auto& format : formats) {
         auto details = Image::queryFormatSupport(vkSetup->physicalDevice, format, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
         PRINT("format %i details:\nmax array layers = %i\n", format, details.properties.maxArrayLayers);
     }
+    */
 
     Image::createImage(vkSetup, commandPool, imgCreateInfo);
 

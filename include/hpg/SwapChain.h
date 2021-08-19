@@ -14,7 +14,6 @@
 #include <common/Model.h>
 
 #include <hpg/VulkanContext.h> // for referencing the device
-#include <hpg/DepthResource.h> // for referencing the depth resource
 
 #include <vector> // vector container
 

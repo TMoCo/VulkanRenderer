@@ -113,12 +113,13 @@ void Renderer::createFrambuffers() {
     for (UI32 i = 0; i < _swapChain.imageCount(); i++) {
         std::array<VkImageView, 2> attachments = {
             _swapChain._imageViews[i],
-            _depth._view
+            //_depth._view
         };
 
         // image framebuffer
         VkFramebufferCreateInfo framebufferCreateInfo = vkinit::framebufferCreateInfo(_renderPass,
-            static_cast<UI32>(attachments.size()), attachments.data(), _swapChain.extent(), 1);
+            1, &attachments[0], _swapChain.extent(), 1); // only need colour attachment
+            //static_cast<UI32>(attachments.size()), attachments.data(), _swapChain.extent(), 1);
       
         if (vkCreateFramebuffer(_context.device, &framebufferCreateInfo, nullptr, &_framebuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("failed to create framebuffer!");
@@ -202,7 +203,7 @@ void Renderer::createFwdRenderPass() {
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; // explicit a graphics subpass 
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
-    subpass.pDepthStencilAttachment = &depthAttachmentRef;
+    subpass.pDepthStencilAttachment = nullptr; // &depthAttachmentRef;
 
     /**************************************************************************************************************
     // subpass dependencies control the image layout transitions. They specify memory and execution of dependencies
@@ -245,7 +246,7 @@ void Renderer::createFwdRenderPass() {
     **************************************************************************************************************/
 
     // create the render pass
-    std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
+    std::array<VkAttachmentDescription, 1> attachments = { colorAttachment }; // , depthAttachment };
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = static_cast<UI32>(attachments.size());
