@@ -3,7 +3,6 @@
 #include <utils/vkinit.h>
 
 void Renderer::init(GLFWwindow* window) {
-	// setup vulkan context
 	_context.init(window);
 
     createCommandPool(&_commandPools[RENDER], VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
@@ -17,15 +16,17 @@ void Renderer::init(GLFWwindow* window) {
     createAttachment(_gbuffer[ALBEDO], 0x14, _swapChain.extent(), VK_FORMAT_R8G8B8A8_SRGB);
     createAttachment(_gbuffer[DEPTH], 0x24, _swapChain.extent(), utils::findDepthFormat(_context.physicalDevice));
 
+    // build render pass
     createFwdRenderPass();
     createGuiRenderPass();
     createOffscreenRenderPass();
+
+    createColorSampler();
 
     createFramebuffers();
 
     createSyncObjects();
 
-    // build render pass
 }
 
 void Renderer::cleanup() {
@@ -40,14 +41,18 @@ void Renderer::cleanup() {
         vkDestroyFramebuffer(_context.device, _framebuffers[i], nullptr);
         vkDestroyFramebuffer(_context.device, _guiFramebuffers[i], nullptr);
     }
+    vkDestroyFramebuffer(_context.device, _offscreenFramebuffer, nullptr);
 
     for (auto& attachment : _gbuffer) {
         attachment.cleanup(&_context);
     }
 
+    vkDestroySampler(_context.device, _colorSampler, nullptr);
+
     // destroy the render passes
     vkDestroyRenderPass(_context.device, _renderPass, nullptr);
     vkDestroyRenderPass(_context.device, _guiRenderPass, nullptr);
+    vkDestroyRenderPass(_context.device, _offscreenRenderPass, nullptr);
 
     _swapChain.cleanup();
 
@@ -178,6 +183,16 @@ void Renderer::createAttachment(Renderer::Attachment& attachment, VkImageUsageFl
     VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(attachment._image._vkImage,
         VK_IMAGE_VIEW_TYPE_2D, format, {}, { aspectMask, 0, 1, 0, 1 });
     attachment._view = Image::createImageView(&_context, imageViewCreateInfo);
+}
+
+void Renderer::createColorSampler() {
+    VkSamplerCreateInfo samplerCreateInfo = vkinit::samplerCreateInfo();
+    samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerCreateInfo.addressModeV = samplerCreateInfo.addressModeU;
+    samplerCreateInfo.addressModeW = samplerCreateInfo.addressModeU;
+    if (vkCreateSampler(_context.device, &samplerCreateInfo, nullptr, &_colorSampler)) {
+        throw std::runtime_error("Could not create GBuffer colour sampler");
+    }
 }
 
 void Renderer::createFwdRenderPass() {
@@ -336,18 +351,18 @@ void Renderer::createOffscreenRenderPass() {
     attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     // color attachments
-    attachmentDescription.format = _gbuffer[POSITION]._format;
+    attachmentDescription.format = _gbuffer[POSITION]._image._format;
     attachmentDescriptions[POSITION] = attachmentDescription;
 
-    attachmentDescription.format = _gbuffer[NORMAL]._format;
+    attachmentDescription.format = _gbuffer[NORMAL]._image._format;
     attachmentDescriptions[NORMAL] = attachmentDescription;
 
-    attachmentDescription.format = _gbuffer[ALBEDO]._format;
+    attachmentDescription.format = _gbuffer[ALBEDO]._image._format;
     attachmentDescriptions[ALBEDO] = attachmentDescription;
 
     // depth attachment
     attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    attachmentDescription.format = _gbuffer[DEPTH]._format;
+    attachmentDescription.format = _gbuffer[DEPTH]._image._format;
     attachmentDescriptions[DEPTH] = attachmentDescription;
 
     // attachment references

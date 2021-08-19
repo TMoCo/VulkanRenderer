@@ -23,7 +23,6 @@
 #include <hpg/Renderer.h>
 #include <hpg/VulkanContext.h>
 #include <hpg/SwapChain.h>
-#include <hpg/GBuffer.h>
 #include <hpg/Buffer.h>
 #include <hpg/Skybox.h>
 #include <hpg/ShadowMap.h>
@@ -42,6 +41,28 @@
 #include <array>
 #include <string> // string for file name
 #include <chrono> // time 
+
+struct Light {
+    glm::vec4 pos;
+    glm::vec3 color;
+    float radius;
+};
+
+// TODO: organise uniform buffer objects better
+struct OffScreenUbo {
+    glm::mat4 model;
+    glm::mat4 view;
+    glm::mat4 projection;
+    glm::mat4 normal;
+};
+
+struct CompositionUBO {
+    glm::vec4 guiData;
+    glm::mat4 depthMVP;
+    glm::mat4 cameraMVP;
+    Light lights[1];
+};
+
 
 class Application {
 
@@ -85,6 +106,7 @@ private:
 
     //-Pipelines-------------------------------------------------------------------------------------------------//  
     void createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout);
+    void createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLayout);
 
     //-Window/Input Callbacks------------------------------------------------------------------------------------//
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
@@ -107,8 +129,6 @@ public:
 
     Renderer _renderer;
 
-    GBuffer gBuffer;
-
     Model model;
 
     Skybox skybox;
@@ -128,16 +148,25 @@ public:
     Plane floor;
     Cube cube;
 
+
     VkPipelineLayout _fwdPipelineLayout;
     VkPipeline       _fwdPipeline;
 
+    VkPipelineLayout _deferredPipelineLayout;
+    VkPipeline _compositionPipeline;
+    VkPipeline _offScreenPipeline;
+    VkPipeline _skyboxPipeline;
+
     VkDescriptorPool descriptorPool;
     VkDescriptorSetLayout descriptorSetLayout;
-    // descriptor set handles
+
     std::vector<VkDescriptorSet> compositionDescriptorSets; 
     VkDescriptorSet offScreenDescriptorSet;
     VkDescriptorSet skyboxDescriptorSet;
     VkDescriptorSet shadowMapDescriptorSet;
+
+    Buffer _offScreenUniform;
+    Buffer _compositionUniforms;
 
     std::vector<VkCommandBuffer> offScreenCommandBuffers;
     std::vector<VkCommandBuffer> renderCommandBuffers;

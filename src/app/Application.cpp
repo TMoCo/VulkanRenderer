@@ -104,10 +104,16 @@ void Application::initVulkan() {
     // swap chain independent
     createDescriptorSetLayout();
 
-    // swap chain dependent
-    gBuffer.createGBuffer(&_renderer._context, &_renderer._swapChain, &descriptorSetLayout, 
-        _renderer._commandPools[kCmdPools::RENDER], _renderer._renderPass, _renderer._offscreenRenderPass);
+    createForwardPipeline(&descriptorSetLayout);
+    createDeferredPipelines(&descriptorSetLayout);
+
     shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
+
+    Buffer::createUniformBuffer<OffScreenUbo>(&_renderer._context, 1,
+        &_offScreenUniform, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    Buffer::createUniformBuffer<CompositionUBO>(&_renderer._context, _renderer._swapChain.imageCount(),
+        &_compositionUniforms, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     createDescriptorPool();
     createDescriptorSets(_renderer._swapChain.imageCount());
@@ -150,13 +156,10 @@ void Application::recreateVulkanData() {
         static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data());
 
     shadowMap.cleanupShadowMap();
-    gBuffer.cleanupGBuffer();
 
     _renderer.recreateSwapchain();
 
     // create new swap chain etc...
-    gBuffer.createGBuffer(&_renderer._context, &_renderer._swapChain, &descriptorSetLayout, 
-        _renderer._commandPools[kCmdPools::RENDER], _renderer._renderPass, _renderer._offscreenRenderPass);
     shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
 
     createDescriptorSets(_renderer._swapChain.imageCount());
@@ -293,9 +296,9 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
 
     // offscreen uniform
     VkDescriptorBufferInfo offScreenUboInf{};
-    offScreenUboInf.buffer = gBuffer.offScreenUniform._vkBuffer;
+    offScreenUboInf.buffer = _offScreenUniform._vkBuffer;
     offScreenUboInf.offset = 0;
-    offScreenUboInf.range  = sizeof(GBuffer::OffScreenUbo);
+    offScreenUboInf.range  = sizeof(OffScreenUbo);
     
     // offscreen textures in scene
     std::vector<VkDescriptorImageInfo> offScreenTexDescriptors(textures.size());
@@ -314,7 +317,7 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
         vkinit::writeDescriptorSet(offScreenDescriptorSet, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &offScreenTexDescriptors[1])
     };
 
-    vkUpdateDescriptorSets(_renderer._context.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+    vkUpdateDescriptorSets(_renderer._context.device, static_cast<UI32>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
     // skybox descriptor set
     if (vkAllocateDescriptorSets(_renderer._context.device, &allocInfo, &skyboxDescriptorSet) != VK_SUCCESS) {
@@ -340,7 +343,7 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
         vkinit::writeDescriptorSet(skyboxDescriptorSet, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &skyboxTexDescriptor)
     };
 
-    vkUpdateDescriptorSets(_renderer._context.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+    vkUpdateDescriptorSets(_renderer._context.device, static_cast<UI32>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
     // shadowMap descriptor set
     if (vkAllocateDescriptorSets(_renderer._context.device, &allocInfo, &shadowMapDescriptorSet) != VK_SUCCESS) {
@@ -358,10 +361,10 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
         vkinit::writeDescriptorSet(shadowMapDescriptorSet, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &shadowMapUboInf),
     };
 
-    vkUpdateDescriptorSets(_renderer._context.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+    vkUpdateDescriptorSets(_renderer._context.device, static_cast<UI32>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
     // composition descriptor sets
-    allocInfo.descriptorSetCount = static_cast<uint32_t>(layouts.size());
+    allocInfo.descriptorSetCount = static_cast<UI32>(layouts.size());
     compositionDescriptorSets.resize(layouts.size());
 
     if (vkAllocateDescriptorSets(_renderer._context.device, &allocInfo, compositionDescriptorSets.data()) != VK_SUCCESS) {
@@ -371,18 +374,18 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
     // image descriptors for gBuffer color attachments and shadow map
     VkDescriptorImageInfo texDescriptorPosition{};
     texDescriptorPosition.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    texDescriptorPosition.imageView = gBuffer.attachments["position"].imageView;
-    texDescriptorPosition.sampler = gBuffer.colourSampler;
+    texDescriptorPosition.imageView = _renderer._gbuffer[POSITION]._view;
+    texDescriptorPosition.sampler = _renderer._colorSampler;
 
     VkDescriptorImageInfo texDescriptorNormal{};
     texDescriptorNormal.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    texDescriptorNormal.imageView = gBuffer.attachments["normal"].imageView;
-    texDescriptorNormal.sampler = gBuffer.colourSampler;
+    texDescriptorNormal.imageView = _renderer._gbuffer[NORMAL]._view;
+    texDescriptorNormal.sampler = _renderer._colorSampler;
 
     VkDescriptorImageInfo texDescriptorAlbedo{};
     texDescriptorAlbedo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    texDescriptorAlbedo.imageView = gBuffer.attachments["albedo"].imageView;
-    texDescriptorAlbedo.sampler = gBuffer.colourSampler;
+    texDescriptorAlbedo.imageView = _renderer._gbuffer[ALBEDO]._view;
+    texDescriptorAlbedo.sampler = _renderer._colorSampler;
 
     VkDescriptorImageInfo texDescriptorShadowMap{};
     texDescriptorShadowMap.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
@@ -392,9 +395,9 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
     for (size_t i = 0; i < compositionDescriptorSets.size(); i++) {
         // forward rendering uniform buffer
         VkDescriptorBufferInfo compositionUboInf{};
-        compositionUboInf.buffer = gBuffer.compositionUniforms._vkBuffer;
-        compositionUboInf.offset = sizeof(GBuffer::CompositionUBO) * i;
-        compositionUboInf.range  = sizeof(GBuffer::CompositionUBO);
+        compositionUboInf.buffer = _compositionUniforms._vkBuffer;
+        compositionUboInf.offset = sizeof(CompositionUBO) * i;
+        compositionUboInf.range  = sizeof(CompositionUBO);
 
         // offscreen descriptor writes
         writeDescriptorSets = {
@@ -411,7 +414,7 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
         };
 
         // update according to the configuration
-        vkUpdateDescriptorSets(_renderer._context.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+        vkUpdateDescriptorSets(_renderer._context.device, static_cast<UI32>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
     }
 }
 
@@ -441,9 +444,9 @@ void Application::buildCompositionCommandBuffer(UI32 cmdBufferIndex) {
     }
     
     vkCmdBeginRenderPass(renderCommandBuffers[cmdBufferIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(renderCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, gBuffer.deferredPipeline);
+    vkCmdBindPipeline(renderCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, _compositionPipeline);
     vkCmdBindDescriptorSets(renderCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, 
-        gBuffer.layout, 0, 1, &compositionDescriptorSets[cmdBufferIndex], 0, nullptr);
+        _deferredPipelineLayout, 0, 1, &compositionDescriptorSets[cmdBufferIndex], 0, nullptr);
     // draw a single triangle
     vkCmdDraw(renderCommandBuffers[cmdBufferIndex], 3, 1, 0, 0);
     vkCmdEndRenderPass(renderCommandBuffers[cmdBufferIndex]);
@@ -487,8 +490,9 @@ void Application::buildOffscreenCommandBuffer(UI32 cmdBufferIndex) {
     clearValues[2].color = { 0.0f, 0.0f, 0.0f, 0.0f };
     clearValues[3].depthStencil = { 1.0f, 0 };
 
-    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(gBuffer.deferredRenderPass,
-        gBuffer.deferredFrameBuffer, gBuffer.extent, static_cast<uint32_t>(clearValues.size()), clearValues.data());
+    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._offscreenRenderPass,
+        _renderer._offscreenFramebuffer, _renderer._swapChain.extent(), 
+        static_cast<uint32_t>(clearValues.size()), clearValues.data());
 
     // implicitly resets cmd buffer
     if (vkBeginCommandBuffer(offScreenCommandBuffers[cmdBufferIndex], &commandBufferBeginInfo) != VK_SUCCESS) {
@@ -498,8 +502,8 @@ void Application::buildOffscreenCommandBuffer(UI32 cmdBufferIndex) {
     vkCmdBeginRenderPass(offScreenCommandBuffers[cmdBufferIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
     // scene pipeline
-    vkCmdBindPipeline(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, gBuffer.offScreenPipeline);
-    vkCmdBindDescriptorSets(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, gBuffer.layout, 0, 1,
+    vkCmdBindPipeline(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, _offScreenPipeline);
+    vkCmdBindDescriptorSets(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, _deferredPipelineLayout, 0, 1,
         &offScreenDescriptorSet, 0, nullptr);
     VkDeviceSize offset = 0; // offset into vertex buffer
     vkCmdBindVertexBuffers(offScreenCommandBuffers[cmdBufferIndex], 0, 1, &vertexBuffer._vkBuffer, &offset);
@@ -507,8 +511,8 @@ void Application::buildOffscreenCommandBuffer(UI32 cmdBufferIndex) {
     vkCmdDrawIndexed(offScreenCommandBuffers[cmdBufferIndex], model.getNumIndices(0) + 6, 1, 0, 0, 0);
 
     // skybox pipeline
-    vkCmdBindPipeline(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, gBuffer.skyboxPipeline);
-    vkCmdBindDescriptorSets(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, gBuffer.layout, 0, 1,
+    vkCmdBindPipeline(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, _skyboxPipeline);
+    vkCmdBindDescriptorSets(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, _deferredPipelineLayout, 0, 1,
         &skyboxDescriptorSet, 0, nullptr);
     vkCmdBindVertexBuffers(offScreenCommandBuffers[cmdBufferIndex], 0, 1, &skybox.vertexBuffer._vkBuffer, &offset);
     vkCmdDraw(offScreenCommandBuffers[cmdBufferIndex], 36, 1, 0, 0);
@@ -621,6 +625,132 @@ void Application::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayo
 
     vkDestroyShaderModule(_renderer._context.device, fragShaderModule, nullptr);
     vkDestroyShaderModule(_renderer._context.device, vertShaderModule, nullptr);
+}
+
+void Application::createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLayout) {
+
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
+
+    if (vkCreatePipelineLayout(_renderer._context.device, &pipelineLayoutCreateInfo, nullptr, &_deferredPipelineLayout) != VK_SUCCESS) {
+        throw std::runtime_error("Could not create deferred pipeline layout!");
+    }
+
+    VkColorComponentFlags colBlendAttachFlag =
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    VkPipelineColorBlendAttachmentState colorBlendAttachment =
+        vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE);
+
+    VkViewport viewport{ 0.0f, 0.0f, (F32)_renderer._swapChain.extent().width, (F32)_renderer._swapChain.extent().height, 0.0f, 1.0f };
+    VkRect2D scissor{ { 0, 0 }, _renderer._swapChain.extent() };
+
+    VkShaderModule vertShaderModule, fragShaderModule;
+    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateInfo =
+        vkinit::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
+
+    VkPipelineRasterizationStateCreateInfo rasterizerStateInfo =
+        vkinit::pipelineRasterStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_FRONT_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+
+    VkPipelineColorBlendStateCreateInfo    colorBlendingStateInfo =
+        vkinit::pipelineColorBlendStateCreateInfo(1, &colorBlendAttachment);
+
+    VkPipelineDepthStencilStateCreateInfo  depthStencilStateInfo =
+        vkinit::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
+
+    VkPipelineViewportStateCreateInfo      viewportStateInfo =
+        vkinit::pipelineViewportStateCreateInfo(1, &viewport, 1, &scissor);
+
+    VkPipelineMultisampleStateCreateInfo   multisamplingStateInfo =
+        vkinit::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
+
+    VkPipelineLayoutCreateInfo             pipelineLayoutInfo =
+        vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
+    // shared between the offscreen and composition pipelines
+
+    VkGraphicsPipelineCreateInfo pipelineCreateInfo =
+        vkinit::graphicsPipelineCreateInfo(_deferredPipelineLayout, _renderer._renderPass, 0); // composition pipeline uses swapchain render pass
+
+    pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
+    pipelineCreateInfo.pStages = shaderStages.data();
+    pipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateInfo;
+    pipelineCreateInfo.pViewportState = &viewportStateInfo;
+    pipelineCreateInfo.pRasterizationState = &rasterizerStateInfo;
+    pipelineCreateInfo.pMultisampleState = &multisamplingStateInfo;
+    pipelineCreateInfo.pDepthStencilState = &depthStencilStateInfo;
+    pipelineCreateInfo.pColorBlendState = &colorBlendingStateInfo;
+
+    // composition pipeline
+    vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(COMP_VERT_SHADER));
+    fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(COMP_FRAG_SHADER));
+    shaderStages[0] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
+    shaderStages[1] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
+
+    rasterizerStateInfo.cullMode = VK_CULL_MODE_FRONT_BIT;
+
+    VkPipelineVertexInputStateCreateInfo emptyInputStateInfo =
+        vkinit::pipelineVertexInputStateCreateInfo(0, nullptr, 0, nullptr); // no vertex data input
+    pipelineCreateInfo.pVertexInputState = &emptyInputStateInfo;
+
+    if (vkCreateGraphicsPipelines(_renderer._context.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_compositionPipeline) != VK_SUCCESS) {
+        throw std::runtime_error("Could not create deferred graphics pipeline!");
+    }
+
+    vkDestroyShaderModule(_renderer._context.device, vertShaderModule, nullptr);
+    vkDestroyShaderModule(_renderer._context.device, fragShaderModule, nullptr);
+
+    // offscreen pipeline
+    pipelineCreateInfo.renderPass = _renderer._offscreenRenderPass;
+
+    vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(OFF_VERT_SHADER));
+    fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(OFF_FRAG_SHADER));
+    shaderStages[0] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
+    shaderStages[1] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
+
+    rasterizerStateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+
+    auto bindingDescription = Model::getBindingDescriptions(0);
+    auto attributeDescriptions = Model::getAttributeDescriptions(0);
+
+    VkPipelineVertexInputStateCreateInfo   vertexInputStateInfo =
+        vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription,
+            static_cast<uint32_t>(attributeDescriptions.size()), attributeDescriptions.data());
+    pipelineCreateInfo.pVertexInputState = &vertexInputStateInfo; // vertex input bindings / attributes from gltf model
+
+    std::array<VkPipelineColorBlendAttachmentState, 3> colorBlendAttachmentStates = {
+        vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE),
+        vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE),
+        vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE)
+    };
+
+    colorBlendingStateInfo.attachmentCount = static_cast<uint32_t>(colorBlendAttachmentStates.size());
+    colorBlendingStateInfo.pAttachments = colorBlendAttachmentStates.data();
+
+    if (vkCreateGraphicsPipelines(_renderer._context.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_offScreenPipeline) != VK_SUCCESS) {
+        throw std::runtime_error("Could not create deferred graphics pipeline!");
+    }
+
+    vkDestroyShaderModule(_renderer._context.device, vertShaderModule, nullptr);
+    vkDestroyShaderModule(_renderer._context.device, fragShaderModule, nullptr);
+
+    // skybox pipeline
+    vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(SKY_VERT_SHADER));
+    fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(SKY_FRAG_SHADER));
+    shaderStages[0] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
+    shaderStages[1] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
+
+    bindingDescription = { 0, sizeof(glm::vec3), VK_VERTEX_INPUT_RATE_VERTEX };
+    VkVertexInputAttributeDescription attributeDescription = { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 };
+
+    vertexInputStateInfo = vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription, 1, &attributeDescription);
+    pipelineCreateInfo.pVertexInputState = &vertexInputStateInfo; // vertex input bindings / attributes from gltf model
+
+    if (vkCreateGraphicsPipelines(_renderer._context.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_skyboxPipeline) != VK_SUCCESS) {
+        throw std::runtime_error("Could not create deferred graphics pipeline!");
+    }
+
+    vkDestroyShaderModule(_renderer._context.device, vertShaderModule, nullptr);
+    vkDestroyShaderModule(_renderer._context.device, fragShaderModule, nullptr);
 }
 
 // Handling window resize events
@@ -802,13 +932,16 @@ void Application::updateUniformBuffers(UI32 currentImage) {
     rotateZ[1][1] *= -1.0f;
     model *= rotateZ * glm::toMat4(glm::quat(glm::radians(rotate)));
 
-    GBuffer::OffScreenUbo offscreenUbo{};
+    OffScreenUbo offscreenUbo{};
     offscreenUbo.model = model;
     offscreenUbo.view = camera.getViewMatrix();
     offscreenUbo.projection = proj;
     offscreenUbo.normal = glm::transpose(glm::inverse(glm::mat3(model)));
 
-    gBuffer.updateOffScreenUniformBuffer(offscreenUbo);
+    void* data;
+    vkMapMemory(_renderer._context.device, _offScreenUniform._memory, 0, sizeof(offscreenUbo), 0, &data);
+    memcpy(data, &offscreenUbo, sizeof(offscreenUbo));
+    vkUnmapMemory(_renderer._context.device, _offScreenUniform._memory);
 
     // shadow map ubo
     ShadowMap::UBO shadowMapUbo = { spotLight.getMVP(model) };
@@ -822,7 +955,7 @@ void Application::updateUniformBuffers(UI32 currentImage) {
     skybox.updateSkyboxUniformBuffer(skyboxUbo);
 
     // composition ubo
-    GBuffer::CompositionUBO compositionUbo = {};
+    CompositionUBO compositionUbo = {};
     compositionUbo.guiData = { camera.position, attachmentNum };
     compositionUbo.depthMVP = spotLight.getMVP();
     compositionUbo.cameraMVP = offscreenUbo.projection * offscreenUbo.view;
@@ -832,7 +965,10 @@ void Application::updateUniformBuffers(UI32 currentImage) {
     compositionUbo.lights[2] = lights[2];
     compositionUbo.lights[3] = lights[3];
     */
-    gBuffer.updateCompositionUniformBuffer(currentImage, compositionUbo);
+    vkMapMemory(_renderer._context.device, _compositionUniforms._memory, sizeof(compositionUbo) * currentImage, 
+        sizeof(compositionUbo), 0, &data);
+    memcpy(data, &compositionUbo, sizeof(compositionUbo));
+    vkUnmapMemory(_renderer._context.device, _compositionUniforms._memory);
 }
 
 int Application::processKeyInput() {
@@ -926,6 +1062,9 @@ void Application::cleanup() {
 
     shadowMap.cleanupShadowMap();
 
+    _offScreenUniform.cleanupBufferData(_renderer._context.device);
+    _compositionUniforms.cleanupBufferData(_renderer._context.device);
+
     // destroy whatever is dependent on the old swap chain
     vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::RENDER], static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data());
     vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::RENDER], static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data());
@@ -933,7 +1072,7 @@ void Application::cleanup() {
 
     // call the function we created for destroying the swap chain and frame buffers
     // in the reverse order of their creation
-    gBuffer.cleanupGBuffer();
+    // gBuffer.cleanupGBuffer();
 
     // cleanup the descriptor pools and descriptor set layouts
     vkDestroyDescriptorPool(_renderer._context.device, descriptorPool, nullptr);
@@ -942,6 +1081,15 @@ void Application::cleanup() {
     // destroy the index and vertex buffers
     indexBuffer.cleanupBufferData(_renderer._context.device);
     vertexBuffer.cleanupBufferData(_renderer._context.device);
+
+    // destroy pipelines
+    vkDestroyPipeline(_renderer._context.device, _fwdPipeline, nullptr);
+    vkDestroyPipelineLayout(_renderer._context.device, _fwdPipelineLayout, nullptr);
+
+    vkDestroyPipelineLayout(_renderer._context.device, _deferredPipelineLayout, nullptr);
+    vkDestroyPipeline(_renderer._context.device, _compositionPipeline, nullptr);
+    vkDestroyPipeline(_renderer._context.device, _offScreenPipeline, nullptr);
+    vkDestroyPipeline(_renderer._context.device, _skyboxPipeline, nullptr);
 
     _renderer.cleanup();
 

@@ -7,7 +7,6 @@
 
 #include <hpg/VulkanContext.h>
 #include <hpg/SwapChain.h>
-#include <hpg/GBuffer.h>
 
 #include <array>
 
@@ -17,7 +16,7 @@ enum kCmdPools {
 	NUM_POOLS
 };
 
-enum kGBuffer {
+enum kGbuffer {
 	POSITION,
 	NORMAL,
 	ALBEDO,
@@ -35,7 +34,6 @@ class Renderer {
 		}
 
 		Image _image;
-		VkFormat _format;
 		VkImageView _view;
 	};
 
@@ -51,12 +49,12 @@ private:
 	void createSyncObjects();
 	void createFramebuffers();
 	void createAttachment(Attachment& attachment, VkImageUsageFlags usage, VkExtent2D extent, VkFormat format);
+	void createColorSampler();
 
 	// TODO: merge renderpasses
 	void createFwdRenderPass();
 	void createGuiRenderPass();
 	void createOffscreenRenderPass(); 
-
 
 public:
 	// the vulkan context
@@ -75,6 +73,9 @@ public:
 
 	// gbuffer
 	std::array<Attachment, NUM_ATTACHMENTS> _gbuffer;
+
+	// color sampler
+	VkSampler _colorSampler;
 
 	// main render pass
 	// TODO: Merge render passes
