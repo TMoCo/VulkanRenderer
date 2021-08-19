@@ -28,7 +28,7 @@ void SwapChain::init(VulkanContext* pContext) {
 
     // then create the image views for the images created
     _imageViews.resize(_images.size());
-    for (size_t i = 0; i < _images.size(); i++) {
+    for (UI32 i = 0; i < _imageCount; i++) {
         VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(_images[i],
             VK_IMAGE_VIEW_TYPE_2D, _format, {}, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
         _imageViews[i] = Image::createImageView(_context, imageViewCreateInfo);
@@ -39,7 +39,7 @@ void SwapChain::cleanup() {
 
     // loop over the image views and destroy them. NB we don't destroy the images because they are implicilty created
     // and destroyed by the swap chain
-    for (size_t i = 0; i < _imageViews.size(); i++) {
+    for (UI32 i = 0; i < _imageCount; i++) {
         vkDestroyImageView(_context->device, _imageViews[i], nullptr);
     }
 

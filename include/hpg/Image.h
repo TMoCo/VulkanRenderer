@@ -28,8 +28,7 @@ class Image {
 public:
     //-Texture operation info structs-------------------------------------//
     struct ImageCreateInfo {
-        uint32_t              width  = 0;
-        uint32_t              height = 0;
+        VkExtent2D            extent = { 0, 0 };
         VkFormat              format = VK_FORMAT_UNDEFINED;
         VkImageTiling         tiling = VK_IMAGE_TILING_OPTIMAL;
         VkImageUsageFlags     usage = VK_NULL_HANDLE;

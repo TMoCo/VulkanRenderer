@@ -14,8 +14,8 @@ void Image::createImage(const VulkanContext* vkSetup, const VkCommandPool& comma
     VkImageCreateInfo imageInfo{};
     imageInfo.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType     = VK_IMAGE_TYPE_2D; // coordinate system of the texels
-    imageInfo.extent.width  = info.width; // the dimensions of the image
-    imageInfo.extent.height = info.height;
+    imageInfo.extent.width  = info.extent.width; // the dimensions of the image
+    imageInfo.extent.height = info.extent.height;
     imageInfo.extent.depth  = 1;
     imageInfo.mipLevels     = 1; // mip mapping 
     imageInfo.arrayLayers   = info.arrayLayers;

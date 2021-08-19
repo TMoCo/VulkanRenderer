@@ -45,8 +45,7 @@ void ShadowMap::cleanupShadowMap() {
 void ShadowMap::createAttachment(const VkCommandPool& cmdPool) {
 	// create the image 
 	Image::ImageCreateInfo info{};
-	info.width = extent;
-	info.height = extent;
+	info.extent = { extent, extent };
 	info.format = format;
 	info.tiling = VK_IMAGE_TILING_OPTIMAL;
 	info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;

@@ -105,7 +105,6 @@ void Application::initVulkan() {
     createDescriptorSetLayout();
 
     // swap chain dependent
-    // frameBuffer.createFrameBuffer(&_renderer._context, &_renderer._swapChain, _renderer._commandPools[kCmdPools::RENDER]);
     gBuffer.createGBuffer(&_renderer._context, &_renderer._swapChain, &descriptorSetLayout, 
         _renderer._commandPools[kCmdPools::RENDER], _renderer._renderPass);
     shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);

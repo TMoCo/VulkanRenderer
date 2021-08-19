@@ -16,7 +16,7 @@ void GBuffer::createGBuffer(VulkanContext* pVkSetup, SwapChain* swapChain, VkDes
 	createAttachment("position", VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, cmdPool);
 	createAttachment("normal", VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, cmdPool);
 	createAttachment("albedo", VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, cmdPool);
-	createAttachment("depth", DepthResource::findDepthFormat(vkSetup), VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, cmdPool);
+	createAttachment("depth", utils::findDepthFormat(vkSetup->physicalDevice), VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, cmdPool);
 
 	createRenderPass();
 
@@ -61,11 +61,11 @@ void GBuffer::createAttachment(const std::string& name, VkFormat format, VkImage
 
 	// create the image 
 	Image::ImageCreateInfo info{};
-	info.width        = extent.width;
-	info.height       = extent.height;
+	info.extent		  = extent;
 	info.format       = attachment->format;
 	info.tiling       = VK_IMAGE_TILING_OPTIMAL;
 	info.usage        = usage | VK_IMAGE_USAGE_SAMPLED_BIT;
+	info.properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 	info.pImage		  = &attachment->image;
 
 	Image::createImage(vkSetup, cmdPool, info);

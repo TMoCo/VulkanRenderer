@@ -2,6 +2,11 @@
 
 #include <utils/vkinit.h>
 
+void Renderer::Attachment::cleanup(VulkanContext* context) {
+    vkDestroyImageView(context->device, _view, nullptr);
+    _image.cleanupImage(context);
+}
+
 void Renderer::init(GLFWwindow* window) {
 	// setup vulkan context
 	_context.init(window);
@@ -14,7 +19,7 @@ void Renderer::init(GLFWwindow* window) {
     createFwdRenderPass();
     createGuiRenderPass();
 
-    _depth.createDepthResource(&_context, _swapChain.extent(), _commandPools[RENDER]);
+    createAttachment(_depth, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, _swapChain.extent(), utils::findDepthFormat(_context.physicalDevice));
     createFrambuffers();
 
     createSyncObjects();
@@ -35,7 +40,7 @@ void Renderer::cleanup() {
         vkDestroyFramebuffer(_context.device, _guiFramebuffers[i], nullptr);
     }
 
-    _depth.cleanupDepthResource();
+    _depth.cleanup(&_context);
 
     // destroy the render passes
     vkDestroyRenderPass(_context.device, _renderPass, nullptr);
@@ -56,19 +61,16 @@ void Renderer::recreateSwapchain() {
         vkDestroyFramebuffer(_context.device, _guiFramebuffers[i], nullptr);
     }
 
-    _depth.cleanupDepthResource();
+    _depth.cleanup(&_context);
     
     _swapChain.cleanup();
 
     // recreate swapchain and dependencies
     _swapChain.init(&_context);
 
-    _depth.createDepthResource(&_context, _swapChain.extent(), _commandPools[RENDER]);
-    createFrambuffers();
-}
+    createAttachment(_depth, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, _swapChain.extent(), utils::findDepthFormat(_context.physicalDevice));
 
-F32 Renderer::aspectRatio() {
-    return _swapChain._aspectRatio;
+    createFrambuffers();
 }
 
 void Renderer::createCommandPool(VkCommandPool* commandPool, VkCommandPoolCreateFlags flags) {
@@ -111,7 +113,7 @@ void Renderer::createFrambuffers() {
     for (UI32 i = 0; i < _swapChain.imageCount(); i++) {
         std::array<VkImageView, 2> attachments = {
             _swapChain._imageViews[i],
-            _depth.depthImageView
+            _depth._view
         };
 
         // image framebuffer
@@ -132,6 +134,33 @@ void Renderer::createFrambuffers() {
     }
 }
 
+void Renderer::createAttachment(Renderer::Attachment& attachment, VkImageUsageFlagBits usage, VkExtent2D extent, VkFormat format) {
+    // create the image 
+    Image::ImageCreateInfo info{};
+    info.extent = extent;
+    info.format = format;
+    info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    info.usage = usage;
+    info.properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    info.pImage = &attachment._image;
+
+    Image::createImage(&_context, _commandPools[RENDER], info);
+
+    // create the image view
+    VkImageAspectFlags aspectMask = 0;
+    // usage determines aspect mask
+    if (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+        aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    if (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+        aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    if (aspectMask <= 0)
+        throw std::runtime_error("Invalid aspect mask!");
+
+    VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(attachment._image._vkImage,
+        VK_IMAGE_VIEW_TYPE_2D, format, {}, { aspectMask, 0, 1, 0, 1 });
+    attachment._view = Image::createImageView(&_context, imageViewCreateInfo);
+}
+
 void Renderer::createFwdRenderPass() {
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = _swapChain.format(); // sc image format
@@ -145,7 +174,7 @@ void Renderer::createFwdRenderPass() {
 
     // specify a depth attachment to the render pass
     VkAttachmentDescription depthAttachment{};
-    depthAttachment.format = DepthResource::findDepthFormat(&_context); // same format as depth image
+    depthAttachment.format = utils::findDepthFormat(_context.physicalDevice); // same format as depth image
     depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -274,4 +303,3 @@ void Renderer::createGuiRenderPass() {
         throw std::runtime_error("Could not create Dear ImGui's render pass");
     }
 }
-

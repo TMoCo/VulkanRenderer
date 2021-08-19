@@ -10,7 +10,6 @@
 #define FRAME_BUFFER_H
 
 #include <hpg/VulkanContext.h> // for referencing the device
-#include <hpg/DepthResource.h> // for referencing the depth resource
 #include <hpg/SwapChain.h> // for referencing the swap chain
 
 #include <vulkan/vulkan_core.h>
@@ -32,8 +31,6 @@ public:
 
     std::vector<VkFramebuffer> framebuffers;
     std::vector<VkFramebuffer> imGuiFramebuffers;
-
-    DepthResource depthResource;
 };
 
 

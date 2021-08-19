@@ -98,8 +98,7 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
 
     // create the image and its memory
     Image::ImageCreateInfo imgCreateInfo{};
-    imgCreateInfo.width = imageData.width;
-    imgCreateInfo.height = imageData.height;
+    imgCreateInfo.extent = { imageData.width, imageData.height };
     imgCreateInfo.format = imageData.format;
     imgCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imgCreateInfo.usage = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;

@@ -81,6 +81,12 @@ namespace utils {
     glm::vec3* toVec3(F32* pVec);
     glm::vec4* toVec4(F32* pVec);
 
+    //-Image formats---------------------------------------------------------------------------------------------//
+    VkFormat findSupportedFormat(const VkPhysicalDevice physicalDevice, const std::vector<VkFormat>& candidates,
+        VkImageTiling tiling, VkFormatFeatureFlags features);
+
+    VkFormat findDepthFormat(const VkPhysicalDevice physicalDevice);
+
     //-Memory type-----------------------------------------------------------------------------------------------//
     UI32 findMemoryType(const VkPhysicalDevice* physicalDevice, UI32 typeFilter, VkMemoryPropertyFlags properties);
 

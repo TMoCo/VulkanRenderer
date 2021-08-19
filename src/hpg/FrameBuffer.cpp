@@ -19,7 +19,6 @@ void FrameBuffer::createFrameBuffer(VulkanContext* pVkSetup, const SwapChain* sw
     // update the pointer to the setup data rather than passing as argument to functions
     vkSetup = pVkSetup;
     // first create the depth resource
-    depthResource.createDepthResource(vkSetup, swapChainData->_extent, commandPool);
     // then create the framebuffers
     createFrameBuffers(swapChainData);
     createImGuiFramebuffers(swapChainData);
@@ -27,7 +26,6 @@ void FrameBuffer::createFrameBuffer(VulkanContext* pVkSetup, const SwapChain* sw
 
 void FrameBuffer::cleanupFrameBuffers() {
     // cleanup the depth resource
-    depthResource.cleanupDepthResource();
 
     // then desroy the frame buffers
     for (size_t i = 0; i < framebuffers.size(); i++) {
@@ -51,7 +49,6 @@ void FrameBuffer::createFrameBuffers(const SwapChain* swapChain) {
         // get the attachment 
         std::array<VkImageView, 2> attachments = {
             swapChain->_imageViews[i],
-            depthResource.depthImageView
         };
 
         VkFramebufferCreateInfo framebufferInfo{};

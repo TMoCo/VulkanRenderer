@@ -15,20 +15,32 @@
 enum kCmdPools {
 	RENDER,
 	GUI,
-	POOLNUM
+	NUM_POOLS
 };
 
 class Renderer {
+	//-Render pass attachment------------------------------------------------------------------------------------//    
+	class Attachment {
+	public:
+		void cleanup(VulkanContext* context);
+
+		Image _image;
+		VkFormat _format;
+		VkImageView _view;
+	};
+
 public:
 	void init(GLFWwindow* window);
 	void cleanup();
 	void recreateSwapchain();
-	F32 aspectRatio();
+
+	inline F32 aspectRatio() { return _swapChain._aspectRatio; }
 
 private:
 	void createCommandPool(VkCommandPool* commandPool, VkCommandPoolCreateFlags flags);
 	void createSyncObjects();
 	void createFrambuffers();
+	void createAttachment(Attachment& attachment, VkImageUsageFlagBits usage, VkExtent2D extent, VkFormat format);
 
 	// TODO: move render pass outside of swap chain (merge with other renderpasses)
 	//-Render passes---------------------------------------------------------------------------------------------//    
@@ -41,7 +53,7 @@ public:
 	VulkanContext _context;
 
 	// command pools and buffers
-	std::array<VkCommandPool, POOLNUM> _commandPools;
+	std::array<VkCommandPool, NUM_POOLS> _commandPools;
 
 	// swap chain
 	SwapChain _swapChain;
@@ -52,7 +64,7 @@ public:
 
 	// gbuffer
 	GBuffer _gbuffer;
-	DepthResource _depth;
+	Attachment _depth;
 
 	// main render pass
 	// TODO: Merge render passes

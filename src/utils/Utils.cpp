@@ -43,7 +43,6 @@ namespace utils {
         return indices;
     }
 
-
     glm::vec2* toVec2(F32* pVec) {
         return reinterpret_cast<glm::vec2*>(pVec);
     }
@@ -71,6 +70,42 @@ namespace utils {
         }
         // otherwise we can't find the right type!
         throw std::runtime_error("failed to find suitable memory type!");
+    }
+
+    VkFormat findSupportedFormat(const VkPhysicalDevice physicalDevice, const std::vector<VkFormat>& candidates, 
+        VkImageTiling tiling, VkFormatFeatureFlags features) {
+        // instead of a fixed format, get a list of formats ranked from most to least desirable and iterate through it
+        for (VkFormat format : candidates) {
+            // query the support of the format by the device
+            VkFormatProperties props; // contains three fields
+            // linearTilingFeatures: Use cases that are supported with linear tiling
+            // optimalTilingFeatures: Use cases that are supported with optimal tiling
+            // bufferFeatures : Use cases that are supported for buffer
+            vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
+
+            // test if the format is supported
+            if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
+                return format;
+            }
+            else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
+                return format;
+            }
+        }
+        // could either return a special value or throw an exception
+        throw std::runtime_error("failed to find supported format!");
+    }
+
+    VkFormat findDepthFormat(const VkPhysicalDevice physicalDevice) {
+        // return a certain depth format if available
+        return findSupportedFormat(
+            physicalDevice,
+            // list of candidate formats
+            { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
+            // the desired tiling
+            VK_IMAGE_TILING_OPTIMAL,
+            // the device format properties flag that we want 
+            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+        );
     }
 
     VkCommandBuffer beginSingleTimeCommands(const VkDevice* device, const VkCommandPool& commandPool) {
