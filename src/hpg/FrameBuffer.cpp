@@ -56,7 +56,7 @@ void FrameBuffer::createFrameBuffers(const SwapChain* swapChain) {
 
         VkFramebufferCreateInfo framebufferInfo{};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = swapChain->_renderPass; // which renderpass the framebuffer needs, only one at the moment
+        //framebufferInfo.renderPass = swapChain->_renderPass; // which renderpass the framebuffer needs, only one at the moment
         framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size()); // the number of attachments, or VkImageView objects, to bind to the buffer
         framebufferInfo.pAttachments = attachments.data(); // pointer to the attachment(s)
         framebufferInfo.width = swapChain->_extent.width; // specify dimensions of framebuffer depending on swapchain dimensions
@@ -79,7 +79,7 @@ void FrameBuffer::createImGuiFramebuffers(const SwapChain* swapChain) {
         //VkImageView attachment = swapChainData->imageViews[i];
         VkFramebufferCreateInfo framebufferInfo = {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = swapChain->_guiRenderPass;
+        //framebufferInfo.renderPass = swapChain->_guiRenderPass;
         framebufferInfo.attachmentCount = 1;
         framebufferInfo.pAttachments = &swapChain->_imageViews[i]; // only the image view as attachment needed
         framebufferInfo.width = swapChain->_extent.width;

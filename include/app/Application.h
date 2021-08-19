@@ -108,7 +108,6 @@ public:
 
     Renderer _renderer;
 
-    FrameBuffer frameBuffer;
     GBuffer gBuffer;
 
     Model model;

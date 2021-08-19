@@ -28,6 +28,12 @@ public:
 private:
 	void createCommandPool(VkCommandPool* commandPool, VkCommandPoolCreateFlags flags);
 	void createSyncObjects();
+	void createFrambuffers();
+
+	// TODO: move render pass outside of swap chain (merge with other renderpasses)
+	//-Render passes---------------------------------------------------------------------------------------------//    
+	void createFwdRenderPass();
+	void createGuiRenderPass();
 
 
 public:
@@ -40,13 +46,18 @@ public:
 	// swap chain
 	SwapChain _swapChain;
 
-	// frame buffer
-	FrameBuffer _frameBuffer;
+	// frame buffers
+	std::vector<VkFramebuffer> _framebuffers;
+	std::vector<VkFramebuffer> _guiFramebuffers;
 
 	// gbuffer
-	GBuffer _gBuffer;
+	GBuffer _gbuffer;
+	DepthResource _depth;
 
 	// main render pass
+	// TODO: Merge render passes
+	VkRenderPass _renderPass;
+	VkRenderPass _guiRenderPass;
 
 	// synchronisation
 	std::vector<VkSemaphore> _offScreenSemaphores;

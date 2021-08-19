@@ -17,13 +17,13 @@
 #include <stdexcept>
 
 
-void SwapChain::init(VulkanContext* pVkContext) {
+void SwapChain::init(VulkanContext* pContext) {
     // update the pointer to the setup data rather than passing as argument to functions
-    _vkContext = pVkContext;
+    _context = pContext;
     // create the swap chain
     createSwapChain();
 
-    // update aspect ratio 
+    // compute aspect ratio on creation
     _aspectRatio = (F32)_extent.width / (F32)_extent.height;
 
     // then create the image views for the images created
@@ -31,37 +31,24 @@ void SwapChain::init(VulkanContext* pVkContext) {
     for (size_t i = 0; i < _images.size(); i++) {
         VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(_images[i],
             VK_IMAGE_VIEW_TYPE_2D, _format, {}, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
-        _imageViews[i] = Image::createImageView(_vkContext, imageViewCreateInfo);
+        _imageViews[i] = Image::createImageView(_context, imageViewCreateInfo);
     }
-
-    // then the geometry render pass 
-    createRenderPass();
-
-    // and the ImGUI render pass
-    createImGuiRenderPass();
 }
 
 void SwapChain::cleanup() {
-    // destroy the render passes
-    vkDestroyRenderPass(_vkContext->device, _renderPass, nullptr);
-    vkDestroyRenderPass(_vkContext->device, _guiRenderPass, nullptr);
 
     // loop over the image views and destroy them. NB we don't destroy the images because they are implicilty created
     // and destroyed by the swap chain
     for (size_t i = 0; i < _imageViews.size(); i++) {
-        vkDestroyImageView(_vkContext->device, _imageViews[i], nullptr);
+        vkDestroyImageView(_context->device, _imageViews[i], nullptr);
     }
 
     // destroy the swap chain proper
-    vkDestroySwapchainKHR(_vkContext->device, _swapChain, nullptr);
-}
-
-VkSwapchainKHR SwapChain::get() {
-    return _swapChain;
+    vkDestroySwapchainKHR(_context->device, _swapChain, nullptr);
 }
 
 void SwapChain::createSwapChain() {
-    _supportDetails = querySwapChainSupport(_vkContext); // is sc supported
+    _supportDetails = querySwapChainSupport(_context); // is sc supported
 
     VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(_supportDetails.formats);
     VkPresentModeKHR presentMode     = chooseSwapPresentMode(_supportDetails.presentModes);
@@ -76,7 +63,7 @@ void SwapChain::createSwapChain() {
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface          = _vkContext->surface; // glfw window
+    createInfo.surface          = _context->surface; // glfw window
     createInfo.minImageCount    = _imageCount;
     createInfo.imageFormat      = surfaceFormat.format;
     createInfo.imageColorSpace  = surfaceFormat.colorSpace;
@@ -85,7 +72,7 @@ void SwapChain::createSwapChain() {
     createInfo.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
     // how to handle the sc images across multiple queue families (in case graphics queue is different to presentation queue)
-    utils::QueueFamilyIndices indices = utils::QueueFamilyIndices::findQueueFamilies(_vkContext->physicalDevice, _vkContext->surface);
+    utils::QueueFamilyIndices indices = utils::QueueFamilyIndices::findQueueFamilies(_context->physicalDevice, _context->surface);
     uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 
     if (indices.graphicsFamily != indices.presentFamily) {
@@ -104,13 +91,13 @@ void SwapChain::createSwapChain() {
     createInfo.clipped        = VK_TRUE; // ignore obscured pixels
     createInfo.oldSwapchain   = VK_NULL_HANDLE;
 
-    if (vkCreateSwapchainKHR(_vkContext->device, &createInfo, nullptr, &_swapChain) != VK_SUCCESS) {
+    if (vkCreateSwapchainKHR(_context->device, &createInfo, nullptr, &_swapChain) != VK_SUCCESS) {
         throw std::runtime_error("failed to create swap chain!");
     }
 
     // specify desired num of images, then get pointers
-    vkGetSwapchainImagesKHR(_vkContext->device, _swapChain, &_imageCount, nullptr);
-    vkGetSwapchainImagesKHR(_vkContext->device, _swapChain, &_imageCount, _images.data());
+    vkGetSwapchainImagesKHR(_context->device, _swapChain, &_imageCount, nullptr);
+    vkGetSwapchainImagesKHR(_context->device, _swapChain, &_imageCount, _images.data());
 
     // save format and extent
     _format = surfaceFormat.format;
@@ -168,7 +155,7 @@ VkExtent2D SwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
     else {
         // get the dimensions of the window
         int width, height;
-        glfwGetFramebufferSize(_vkContext->window, &width, &height);
+        glfwGetFramebufferSize(_context->window, &width, &height);
 
         // prepare the struct with the height and width of the window
         VkExtent2D actualExtent = { static_cast<UI32>(width), static_cast<UI32>(height) };
@@ -178,149 +165,6 @@ VkExtent2D SwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
         actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
 
         return actualExtent;
-    }
-}
-
-void SwapChain::createRenderPass() {
-    VkAttachmentDescription colorAttachment{};
-    colorAttachment.format         = _format; // sc image format
-    colorAttachment.samples        = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachment.finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    // specify a depth attachment to the render pass
-    VkAttachmentDescription depthAttachment{};
-    depthAttachment.format         = DepthResource::findDepthFormat(_vkContext); // same format as depth image
-    depthAttachment.samples        = VK_SAMPLE_COUNT_1_BIT;
-    depthAttachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-    depthAttachment.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    /**************************************************************************************************************
-    // A single render pass consists of multiple subpasses, which are subsequent rendering operations depending on 
-    // content of framebuffers on previous passes (eg post processing). Grouping subpasses into a single render 
-    // pass lets Vulkan optimise every subpass references 1 or more attachments.
-    **************************************************************************************************************/
-
-    VkAttachmentReference colorAttachmentRef{};
-    colorAttachmentRef.attachment = 0;
-    colorAttachmentRef.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // which layout during a subpass
-
-    VkAttachmentReference depthAttachmentRef{};
-    depthAttachmentRef.attachment = 1;
-    depthAttachmentRef.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    // the subpass
-    VkSubpassDescription subpass{};
-    subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS; // explicit a graphics subpass 
-    subpass.colorAttachmentCount    = 1;
-    subpass.pColorAttachments       = &colorAttachmentRef;
-    subpass.pDepthStencilAttachment = &depthAttachmentRef;
-
-    /**************************************************************************************************************
-    // subpass dependencies control the image layout transitions. They specify memory and execution of dependencies
-    // between subpasses there are implicit subpasses right before and after the render pass
-    // There are two built-in dependencies that take care of the transition at the start of the render pass and at 
-    // the end, but the former does not occur at the right time as it assumes that the transition occurs at the 
-    // start of the pipeline, but we haven't acquired the image yet there are two ways to deal with the problem:
-    // - change waitStages of the imageAvailableSemaphore (in drawframe) to VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
-    // this ensures that the render pass does not start until image is available.
-    // - make the render pass wait for the VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT stage.
-    **************************************************************************************************************/
-
-    VkSubpassDependency dependency = {};
-    dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass    = 0;
-    dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.srcAccessMask = 0;
-    dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-    /*
-    std::array<VkSubpassDependency, 2> dependencies; // see struct definition for more details
-    dependencies[0] = { VK_SUBPASS_EXTERNAL, 0, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_MEMORY_READ_BIT,
-        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0 };
-
-    dependencies[1] = { 0, VK_SUBPASS_EXTERNAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        VK_ACCESS_MEMORY_READ_BIT, 0 };
-    */
-
-    /**************************************************************************************************************
-    // Specify the operations to wait on and stages when ops occur.
-    // Need to wait for swap chain to finish reading, can be accomplished by waiting on the colour attachment 
-    // output stage.
-    // Need to make sure there are no conflicts between transitionning og the depth image and it being cleared as 
-    // part of its load operation.
-    // The depth image is first accessed in the early fragment test pipeline stage and because we have a load 
-    // operation that clears, we should specify the access mask for writes.
-    **************************************************************************************************************/
-
-    // create the render pass
-    std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
-    VkRenderPassCreateInfo renderPassInfo{};
-    renderPassInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = static_cast<UI32>(attachments.size());
-    renderPassInfo.pAttachments    = attachments.data();
-    renderPassInfo.subpassCount    = 1;
-    renderPassInfo.pSubpasses      = &subpass; // associated supass
-    // specify the dependency
-    renderPassInfo.dependencyCount = 1;// static_cast<uint32_t>(dependencies.size());
-    renderPassInfo.pDependencies = &dependency;// dependencies.data();
-
-    // explicitly create the renderpass
-    if (vkCreateRenderPass(_vkContext->device, &renderPassInfo, nullptr, &_renderPass) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create render pass!");
-    }
-}
-
-void SwapChain::createImGuiRenderPass() {
-    VkAttachmentDescription attachment = {};
-    attachment.format         = _format;
-    attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
-    attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-    attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachment.initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // the initial layout is the image of scene geometry
-    attachment.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-    VkAttachmentReference color_attachment = {};
-    color_attachment.attachment = 0;
-    color_attachment.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    VkSubpassDescription subpass = {};
-    subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments    = &color_attachment;
-
-    VkSubpassDependency dependency = {};
-    dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass    = 0;
-    dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.srcAccessMask = 0;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-    VkRenderPassCreateInfo info = {};
-    info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    info.attachmentCount = 1;
-    info.pAttachments    = &attachment;
-    info.subpassCount    = 1;
-    info.pSubpasses      = &subpass;
-    info.dependencyCount = 1;
-    info.pDependencies   = &dependency;
-
-    if (vkCreateRenderPass(_vkContext->device, &info, nullptr, &_guiRenderPass) != VK_SUCCESS) {
-        throw std::runtime_error("Could not create Dear ImGui's render pass");
     }
 }
 

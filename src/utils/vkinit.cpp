@@ -255,6 +255,27 @@ namespace vkinit {
     }
 
     //-----------------------------------------------------------------------------------------------------------//
+    //-FRAME BUFFER STRUCTS--------------------------------------------------------------------------------------//
+    //-----------------------------------------------------------------------------------------------------------//
+
+    VkFramebufferCreateInfo framebufferCreateInfo (
+        VkRenderPass renderPass,
+        UI32 attachmentCount,
+        VkImageView* pAttachments,
+        VkExtent2D extent,
+        UI32 layers) {
+        VkFramebufferCreateInfo framebufferCreateInfo{};
+        framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferCreateInfo.renderPass = renderPass; 
+        framebufferCreateInfo.attachmentCount = attachmentCount;
+        framebufferCreateInfo.pAttachments    = pAttachments; 
+        framebufferCreateInfo.width  = extent.width; 
+        framebufferCreateInfo.height = extent.height;
+        framebufferCreateInfo.layers = layers;
+        return framebufferCreateInfo;
+    }
+
+    //-----------------------------------------------------------------------------------------------------------//
     //-IMAGE STRUCTS---------------------------------------------------------------------------------------------//
     //-----------------------------------------------------------------------------------------------------------//
 

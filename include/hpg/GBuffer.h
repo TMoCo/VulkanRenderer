@@ -55,7 +55,7 @@ public:
 public:
 	//-Initialisation and cleanup--------------------------------------------------------------------------------//
 	void createGBuffer(VulkanContext* pVkSetup, SwapChain* swapChain, VkDescriptorSetLayout* descriptorSetLayout, 
-		const VkCommandPool& cmdPool);
+		const VkCommandPool& cmdPool, VkRenderPass renderPass);
 	void cleanupGBuffer();
 
 	//-Attachment creation---------------------------------------------------------------------------------------//
@@ -71,7 +71,7 @@ public:
 	void createColourSampler();
 
 	//-Deferred rendering pipeline-------------------------------------------------------------------------------//
-	void createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapChain* swapChain);
+	void createPipelines(VkDescriptorSetLayout* descriptorSetLayout, SwapChain* swapChain, VkRenderPass renderPass);
 
 	//-Uniform buffer update-------------------------------------------------------------------------------------//
 	void updateOffScreenUniformBuffer(const OffScreenUbo& ubo);

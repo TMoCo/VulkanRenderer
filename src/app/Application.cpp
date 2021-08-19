@@ -105,24 +105,25 @@ void Application::initVulkan() {
     createDescriptorSetLayout();
 
     // swap chain dependent
-    frameBuffer.createFrameBuffer(&_renderer._context, &_renderer._swapChain, _renderer._commandPools[kCmdPools::RENDER]);
-    gBuffer.createGBuffer(&_renderer._context, &_renderer._swapChain, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
+    // frameBuffer.createFrameBuffer(&_renderer._context, &_renderer._swapChain, _renderer._commandPools[kCmdPools::RENDER]);
+    gBuffer.createGBuffer(&_renderer._context, &_renderer._swapChain, &descriptorSetLayout, 
+        _renderer._commandPools[kCmdPools::RENDER], _renderer._renderPass);
     shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
 
     createDescriptorPool();
-    createDescriptorSets(_renderer._swapChain._imageCount);
+    createDescriptorSets(_renderer._swapChain.imageCount());
 
-    renderCommandBuffers.resize(_renderer._swapChain._imageCount);
-    offScreenCommandBuffers.resize(_renderer._swapChain._imageCount);    
-    imGuiCommandBuffers.resize(_renderer._swapChain._imageCount);
+    renderCommandBuffers.resize(_renderer._swapChain.imageCount());
+    offScreenCommandBuffers.resize(_renderer._swapChain.imageCount());
+    imGuiCommandBuffers.resize(_renderer._swapChain.imageCount());
 
-    createCommandBuffers(_renderer._swapChain._imageCount, renderCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
-    createCommandBuffers(_renderer._swapChain._imageCount, offScreenCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
+    createCommandBuffers(_renderer._swapChain.imageCount(), renderCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
+    createCommandBuffers(_renderer._swapChain.imageCount(), offScreenCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
 
-    createCommandBuffers(_renderer._swapChain._imageCount, imGuiCommandBuffers.data(), _renderer._commandPools[kCmdPools::GUI]);
+    createCommandBuffers(_renderer._swapChain.imageCount(), imGuiCommandBuffers.data(), _renderer._commandPools[kCmdPools::GUI]);
 
     // record commands
-    for (UI32 i = 0; i < _renderer._swapChain._imageCount; i++) {
+    for (UI32 i = 0; i < _renderer._swapChain.imageCount(); i++) {
         buildOffscreenCommandBuffer(i); // offscreen gbuffer commands
         buildShadowMapCommandBuffer(offScreenCommandBuffers[i]);
         buildCompositionCommandBuffer(i); // final image composition
@@ -141,37 +142,39 @@ void Application::recreateVulkanData() {
     vkDeviceWaitIdle(_renderer._context.device); // wait if in use by device
 
     // destroy old swap chain dependencies
-    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::GUI], static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data());
+    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::GUI], 
+        static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data());
 
-    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::RENDER], static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data());
-    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::RENDER], static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data());
+    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::RENDER], 
+        static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data());
+    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::RENDER], 
+        static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data());
 
     shadowMap.cleanupShadowMap();
     gBuffer.cleanupGBuffer();
-    frameBuffer.cleanupFrameBuffers();
 
     _renderer.recreateSwapchain();
 
     // create new swap chain etc...
-    frameBuffer.createFrameBuffer(&_renderer._context, &_renderer._swapChain, _renderer._commandPools[kCmdPools::RENDER]);
-    gBuffer.createGBuffer(&_renderer._context, &_renderer._swapChain, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
+    gBuffer.createGBuffer(&_renderer._context, &_renderer._swapChain, &descriptorSetLayout, 
+        _renderer._commandPools[kCmdPools::RENDER], _renderer._renderPass);
     shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
 
-    createDescriptorSets(_renderer._swapChain._imageCount);
+    createDescriptorSets(_renderer._swapChain.imageCount());
 
-    createCommandBuffers(_renderer._swapChain._imageCount, renderCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
-    createCommandBuffers(_renderer._swapChain._imageCount, offScreenCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
+    createCommandBuffers(_renderer._swapChain.imageCount(), renderCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
+    createCommandBuffers(_renderer._swapChain.imageCount(), offScreenCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
 
-    createCommandBuffers(_renderer._swapChain._imageCount, imGuiCommandBuffers.data(), _renderer._commandPools[kCmdPools::GUI]);
+    createCommandBuffers(_renderer._swapChain.imageCount(), imGuiCommandBuffers.data(), _renderer._commandPools[kCmdPools::GUI]);
 
-    for (UI32 i = 0; i < _renderer._swapChain._imageCount; i++) {
+    for (UI32 i = 0; i < _renderer._swapChain.imageCount(); i++) {
         buildOffscreenCommandBuffer(i);
         buildCompositionCommandBuffer(i);
         buildShadowMapCommandBuffer(offScreenCommandBuffers[i]);
     }
 
     // update ImGui aswell
-    ImGui_ImplVulkan_SetMinImageCount(_renderer._swapChain._imageCount);
+    ImGui_ImplVulkan_SetMinImageCount(_renderer._swapChain.imageCount());
 }
 
 void Application::initImGui() {
@@ -193,11 +196,11 @@ void Application::initImGui() {
     init_info.PipelineCache  = VK_NULL_HANDLE;
     init_info.DescriptorPool = descriptorPool;
     init_info.Allocator      = nullptr;
-    init_info.MinImageCount  = _renderer._swapChain._supportDetails.capabilities.minImageCount + 1;
-    init_info.ImageCount     = _renderer._swapChain._imageCount;
+    init_info.MinImageCount  = _renderer._swapChain.supportDetails().capabilities.minImageCount + 1;
+    init_info.ImageCount     = _renderer._swapChain.imageCount();
 
     // the imgui render pass
-    ImGui_ImplVulkan_Init(&init_info, _renderer._swapChain._guiRenderPass);
+    ImGui_ImplVulkan_Init(&init_info, _renderer._guiRenderPass);
 
     uploadFonts();
 }
@@ -223,7 +226,7 @@ void Application::initWindow() {
 // Descriptors
 
 void Application::createDescriptorPool() {
-    uint32_t swapChainImageCount = _renderer._swapChain._imageCount;
+    uint32_t swapChainImageCount = _renderer._swapChain.imageCount();
     VkDescriptorPoolSize poolSizes[] = {
         { VK_DESCRIPTOR_TYPE_SAMPLER,                IMGUI_POOL_NUM },
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, IMGUI_POOL_NUM },
@@ -241,7 +244,7 @@ void Application::createDescriptorPool() {
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    poolInfo.maxSets       = IMGUI_POOL_NUM * _renderer._swapChain._imageCount;
+    poolInfo.maxSets       = IMGUI_POOL_NUM * _renderer._swapChain.imageCount();
     poolInfo.poolSizeCount = static_cast<uint32_t>(sizeof(poolSizes) / sizeof(VkDescriptorPoolSize));
     poolInfo.pPoolSizes    = poolSizes; // the descriptors
 
@@ -429,8 +432,8 @@ void Application::buildCompositionCommandBuffer(UI32 cmdBufferIndex) {
     clearValues[0].color           = { 0.0f, 0.0f, 0.0f, 1.0f };
     clearValues[1].depthStencil    = { 1.0f, 0 };
 
-    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._swapChain._renderPass,
-        frameBuffer.framebuffers[cmdBufferIndex], _renderer._swapChain._extent, static_cast<UI32>(clearValues.size()),
+    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._renderPass,
+        _renderer._framebuffers[cmdBufferIndex], _renderer._swapChain.extent(), static_cast<UI32>(clearValues.size()),
         clearValues.data());
 
     // implicitly resets cmd buffer
@@ -462,8 +465,8 @@ void Application::buildGuiCommandBuffer(UI32 cmdBufferIndex) {
     clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f }; // completely opaque clear value
 
     // begin the render pass
-    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._swapChain._guiRenderPass,
-        frameBuffer.imGuiFramebuffers[cmdBufferIndex], _renderer._swapChain._extent, 1, &clearValue);
+    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._guiRenderPass,
+        _renderer._guiFramebuffers[cmdBufferIndex], _renderer._swapChain.extent(), 1, &clearValue);
 
     vkCmdBeginRenderPass(imGuiCommandBuffers[cmdBufferIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
     ImGui::Render();
@@ -566,8 +569,8 @@ void Application::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayo
     auto bindingDescription = Model::getBindingDescriptions(0);
     auto attributeDescriptions = Model::getAttributeDescriptions(0);
 
-    VkViewport viewport{ 0.0f, 0.0f, (F32)_renderer._swapChain._extent.width, (F32)_renderer._swapChain._extent.height, 0.0f, 1.0f };
-    VkRect2D scissor{ { 0, 0 }, _renderer._swapChain._extent };
+    VkViewport viewport{ 0.0f, 0.0f, (F32)_renderer._swapChain.extent().width, (F32)_renderer._swapChain.extent().height, 0.0f, 1.0f };
+    VkRect2D scissor{ { 0, 0 }, _renderer._swapChain.extent() };
 
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlendAttachment.colorWriteMask =
@@ -601,7 +604,7 @@ void Application::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayo
     }
 
     VkGraphicsPipelineCreateInfo pipelineInfo = 
-        vkinit::graphicsPipelineCreateInfo(_fwdPipelineLayout, _renderer._swapChain._renderPass, 0);
+        vkinit::graphicsPipelineCreateInfo(_fwdPipelineLayout, _renderer._renderPass, 0);
 
     // fixed function pipeline
     pipelineInfo.pVertexInputState = &vertexInputInfo;
@@ -681,7 +684,7 @@ void Application::drawFrame() {
     // previous frame finished will fence
     vkWaitForFences(_renderer._context.device, 1, &_renderer._inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
-    VkResult result = vkAcquireNextImageKHR(_renderer._context.device, _renderer._swapChain._swapChain, UINT64_MAX,
+    VkResult result = vkAcquireNextImageKHR(_renderer._context.device, *_renderer._swapChain.get(), UINT64_MAX,
         _renderer._imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -750,7 +753,7 @@ void Application::drawFrame() {
     presentInfo.pWaitSemaphores    = &_renderer._renderFinishedSemaphores[currentFrame];
 
     presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains    = &_renderer._swapChain._swapChain;
+    presentInfo.pSwapchains    = _renderer._swapChain.get();
     presentInfo.pImageIndices  = &imageIndex;
 
     // submit request to put image from the swap chain to the presentation queue
@@ -937,7 +940,6 @@ void Application::cleanup() {
     // call the function we created for destroying the swap chain and frame buffers
     // in the reverse order of their creation
     gBuffer.cleanupGBuffer();
-    frameBuffer.cleanupFrameBuffers();
 
     // cleanup the descriptor pools and descriptor set layouts
     vkDestroyDescriptorPool(_renderer._context.device, descriptorPool, nullptr);

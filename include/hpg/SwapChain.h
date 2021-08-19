@@ -21,6 +21,7 @@
 #include <vulkan/vulkan_core.h>
 
 class SwapChain {
+    friend class Renderer;
 public:
     //-----------------------------------------------------------------------------------------------------------//
     struct SupportDetails {
@@ -30,12 +31,16 @@ public:
     };
 public:
     //-Initialisation and cleanup--------------------------------------------------------------------------------//    
-    void init(VulkanContext* pVkSetup);
+    void init(VulkanContext* pContext);
     void cleanup();
 
-    VkSwapchainKHR get();
+    inline VkSwapchainKHR* get() { return &_swapChain; }
+    inline VkExtent2D extent() { return _extent; }
+    inline VkFormat format() { return _format; }
+    inline UI32 imageCount() { return _imageCount; }
+    inline SupportDetails supportDetails() { return _supportDetails; }
 
-    static SupportDetails querySwapChainSupport(VulkanContext* pVkContext);
+    static SupportDetails querySwapChainSupport(VulkanContext* pContext);
 
 private:
     //-Swap chain creation helpers-------------------------------------------------------------------------------//    
@@ -44,15 +49,9 @@ private:
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
-    // TODO: move render pass outside of swap chain (merge with other renderpasses)
-    //-Render passes---------------------------------------------------------------------------------------------//    
-    void createRenderPass();
-    void createImGuiRenderPass();
-    
-
 public:
     //-Members---------------------------------------------------------------------------------------------------//    
-    VulkanContext* _vkContext;
+    VulkanContext* _context;
 
     VkSwapchainKHR _swapChain;
     
@@ -65,9 +64,6 @@ public:
     std::vector<VkImageView> _imageViews;
     
     SupportDetails  _supportDetails;
-
-    VkRenderPass _renderPass;
-    VkRenderPass _guiRenderPass;
 };
 
 #endif // !VULKAN_SWAP_CHAIN_H
