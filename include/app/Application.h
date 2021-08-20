@@ -103,6 +103,7 @@ private:
     void buildGuiCommandBuffer(UI32 cmdBufferIndex);
     void buildOffscreenCommandBuffer(UI32 cmdBufferIndex);
     void buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer);
+    void recordCommandBuffer(VkCommandBuffer cmdBuffer, UI32 index);
 
     //-Pipelines-------------------------------------------------------------------------------------------------//  
     void createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout);
@@ -147,7 +148,6 @@ public:
 
     Plane floor;
     Cube cube;
-
 
     VkPipelineLayout _fwdPipelineLayout;
     VkPipeline       _fwdPipeline;

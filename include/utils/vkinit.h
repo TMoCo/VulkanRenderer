@@ -118,7 +118,7 @@ namespace vkinit {
     VkCommandBufferBeginInfo commandBufferBeginInfo(
         VkCommandBufferResetFlags flags = 0);
 
-    VkCommandBufferAllocateInfo commaneBufferAllocateInfo(
+    VkCommandBufferAllocateInfo commandBufferAllocateInfo(
         VkCommandPool commandPool,
         VkCommandBufferLevel level,
         UI32 commandBufferCount);
@@ -168,6 +168,9 @@ namespace vkinit {
         VkExtent2D extent,
         UI32 clearValueCount,
         VkClearValue* pClearValues);
+
+    VkRenderPassCreateInfo renderPassCreateInfo(
+        VkRenderPassCreateFlags flags = 0);
 
     //-----------------------------------------------------------------------------------------------------------//
     //-SYNCHRONISATION STRUCTS-----------------------------------------------------------------------------------//

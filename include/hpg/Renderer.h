@@ -16,12 +16,31 @@ enum kCmdPools {
 	NUM_POOLS
 };
 
+
+// for whole render pass
+enum kAttachments {
+	COLOR,
+	GBUFFER_POSITION,
+	GBUFFER_NORMAL,
+	GBUFFER_ALBEDO,
+	GBUFFER_DEPTH,
+	NUM_ATTACHMENTS
+};
+
+// exclusively for accessing the gbuffer elements
 enum kGbuffer {
 	POSITION,
 	NORMAL,
 	ALBEDO,
 	DEPTH,
-	NUM_ATTACHMENTS
+	NUM_GBUFFER_ATTACHMENTS
+};
+
+// indexing subpasses in main render pass
+enum kSubpasses {
+	OFFSCREEN,
+	COMPOSITION,
+	NUM_SUBPASSES
 };
 
 class Renderer {
@@ -50,11 +69,13 @@ private:
 	void createFramebuffers();
 	void createAttachment(Attachment& attachment, VkImageUsageFlags usage, VkExtent2D extent, VkFormat format);
 	void createColorSampler();
+	void createCommandBuffers();
 
 	// TODO: merge renderpasses
 	void createFwdRenderPass();
 	void createGuiRenderPass();
 	void createOffscreenRenderPass(); 
+	void createRenderPass();
 
 public:
 	// the vulkan context
@@ -62,17 +83,19 @@ public:
 
 	// command pools and buffers
 	std::array<VkCommandPool, NUM_POOLS> _commandPools;
+	std::vector<VkCommandBuffer> _renderCommandBuffers;
 
 	// swap chain
 	SwapChain _swapChain;
 
 	// frame buffers
 	std::vector<VkFramebuffer> _framebuffers;
+	std::vector<VkFramebuffer> _fwdFramebuffers;
 	std::vector<VkFramebuffer> _guiFramebuffers;
 	VkFramebuffer _offscreenFramebuffer;
 
 	// gbuffer
-	std::array<Attachment, NUM_ATTACHMENTS> _gbuffer;
+	std::array<Attachment, NUM_GBUFFER_ATTACHMENTS> _gbuffer;
 
 	// color sampler
 	VkSampler _colorSampler;
@@ -80,6 +103,7 @@ public:
 	// main render pass
 	// TODO: Merge render passes
 	VkRenderPass _renderPass;
+	VkRenderPass _fwdRenderPass;
 	VkRenderPass _guiRenderPass;
 	VkRenderPass _offscreenRenderPass;
 

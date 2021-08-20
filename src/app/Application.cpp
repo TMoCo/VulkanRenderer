@@ -129,9 +129,13 @@ void Application::initVulkan() {
 
     // record commands
     for (UI32 i = 0; i < _renderer._swapChain.imageCount(); i++) {
+        buildShadowMapCommandBuffer(_renderer._renderCommandBuffers[i]);
+        recordCommandBuffer(_renderer._renderCommandBuffers[i], i);
+
+        /*
         buildOffscreenCommandBuffer(i); // offscreen gbuffer commands
-        buildShadowMapCommandBuffer(offScreenCommandBuffers[i]);
         buildCompositionCommandBuffer(i); // final image composition
+        */
     }
 }
 
@@ -260,16 +264,18 @@ void Application::createDescriptorSetLayout() {
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
         // binding 0: vertex shader uniform buffer 
         vkinit::descriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
-        // binding 1: model albedo texture / position texture
+        // binding 1: model albedo texture / shadow map sampler
         vkinit::descriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-        // binding 2: model metallic roughness / normal texture
+        // binding 2: model metallic roughness 
         vkinit::descriptorSetLayoutBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-        // binding 3: albedo texture
-        vkinit::descriptorSetLayoutBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-        // binding 4: fragment shader uniform buffer 
-        vkinit::descriptorSetLayoutBinding(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
-        // binding 5: fragment shader shadow map sampler
-        vkinit::descriptorSetLayoutBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+        // binding 3: composition fragment shader uniform buffer 
+        vkinit::descriptorSetLayoutBinding(3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
+        // binding 4: position input attachment
+        vkinit::descriptorSetLayoutBinding(4, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT),
+        // binding 5: normal input attachment
+        vkinit::descriptorSetLayoutBinding(5, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT),
+        // binding 5: albedo input attachment
+        vkinit::descriptorSetLayoutBinding(6, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT)
     };
 
     VkDescriptorSetLayoutCreateInfo layoutCreateInf{};
@@ -401,16 +407,16 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
 
         // offscreen descriptor writes
         writeDescriptorSets = {
+            // binding 1: shadow map
+            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorShadowMap),
             // binding 1: position texture target 
-            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorPosition),
+            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &compositionUboInf),
             // binding 2: normal texture target
-            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorNormal),
+            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 4, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, &texDescriptorPosition),
             // binding 3: albedo texture target
-            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorAlbedo),
+            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 5, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, &texDescriptorNormal),
             // binding 4: fragment shader uniform
-            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &compositionUboInf),
-            // binding 5: shadow map
-            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorShadowMap),
+            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 6, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, &texDescriptorAlbedo),
         };
 
         // update according to the configuration
@@ -421,7 +427,7 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
 // Command buffers
 
 void Application::createCommandBuffers(UI32 count, VkCommandBuffer* commandBuffers, VkCommandPool& commandPool) {
-    VkCommandBufferAllocateInfo allocInfo = vkinit::commaneBufferAllocateInfo(commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, count);
+    VkCommandBufferAllocateInfo allocInfo = vkinit::commandBufferAllocateInfo(commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, count);
     if (vkAllocateCommandBuffers(_renderer._context.device, &allocInfo, commandBuffers) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate command buffers!");
     }
@@ -434,8 +440,8 @@ void Application::buildCompositionCommandBuffer(UI32 cmdBufferIndex) {
     clearValues[0].color           = { 0.0f, 0.0f, 0.0f, 1.0f };
     clearValues[1].depthStencil    = { 1.0f, 0 };
 
-    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._renderPass,
-        _renderer._framebuffers[cmdBufferIndex], _renderer._swapChain.extent(), static_cast<UI32>(clearValues.size()),
+    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._fwdRenderPass,
+        _renderer._fwdFramebuffers[cmdBufferIndex], _renderer._swapChain.extent(), static_cast<UI32>(clearValues.size()),
         clearValues.data());
 
     // implicitly resets cmd buffer
@@ -527,6 +533,10 @@ void Application::buildOffscreenCommandBuffer(UI32 cmdBufferIndex) {
 void Application::buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer) {
     VkCommandBufferBeginInfo commandBufferBeginInfo = vkinit::commandBufferBeginInfo();
 
+    // implicitly resets cmd buffer
+    if (vkBeginCommandBuffer(cmdBuffer, &commandBufferBeginInfo) != VK_SUCCESS) {
+        throw std::runtime_error("failed to begin recording command buffer!");
+    }
     // Clear values for all attachments written in the fragment shader
     VkClearValue clearValue{};
     clearValue.depthStencil = { 1.0f, 0 };
@@ -557,6 +567,49 @@ void Application::buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer) {
     
     vkCmdDrawIndexed(cmdBuffer, model.getNumIndices(0) + 6, 1, 0, 0, 0);
 
+    vkCmdEndRenderPass(cmdBuffer);
+}
+
+// USES THE NEW RENDER PASS
+void Application::recordCommandBuffer(VkCommandBuffer cmdBuffer, UI32 index) {
+    // Clear values for all attachments written in the fragment shader
+    VkClearValue clearValues[kAttachments::NUM_ATTACHMENTS] {};
+    clearValues[kAttachments::COLOR].color = { 0.0f, 0.0f, 0.0f, 0.0f };
+    clearValues[kAttachments::GBUFFER_POSITION].color = clearValues[kAttachments::COLOR].color;
+    clearValues[kAttachments::GBUFFER_NORMAL].color = clearValues[kAttachments::GBUFFER_POSITION].color;
+    clearValues[kAttachments::GBUFFER_ALBEDO].color = clearValues[kAttachments::GBUFFER_NORMAL].color;
+    clearValues[kAttachments::GBUFFER_DEPTH].depthStencil = { 1.0f, 0 };
+
+    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._renderPass,
+        _renderer._framebuffers[index], _renderer._swapChain.extent(), kAttachments::NUM_ATTACHMENTS, clearValues);
+
+    // 1: offscreen scene render into gbuffer
+    vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    // scene pipeline
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _offScreenPipeline);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _deferredPipelineLayout, 0, 1,
+        &offScreenDescriptorSet, 0, nullptr);
+    VkDeviceSize offset = 0; // offset into vertex buffer
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer._vkBuffer, &offset);
+    vkCmdBindIndexBuffer(cmdBuffer, indexBuffer._vkBuffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmdBuffer, model.getNumIndices(0) + 6, 1, 0, 0, 0);
+
+    // skybox pipeline
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _skyboxPipeline);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _deferredPipelineLayout, 0, 1,
+        &skyboxDescriptorSet, 0, nullptr);
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &skybox.vertexBuffer._vkBuffer, &offset);
+    vkCmdDraw(cmdBuffer, 36, 1, 0, 0);
+
+    // 2: composition to screen
+    vkCmdNextSubpass(cmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _compositionPipeline);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+        _deferredPipelineLayout, 0, 1, &compositionDescriptorSets[index], 0, nullptr);
+    // draw a single triangle
+    vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
     vkCmdEndRenderPass(cmdBuffer);
 
     if (vkEndCommandBuffer(cmdBuffer) != VK_SUCCESS) {
@@ -606,7 +659,7 @@ void Application::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayo
     }
 
     VkGraphicsPipelineCreateInfo pipelineInfo = 
-        vkinit::graphicsPipelineCreateInfo(_fwdPipelineLayout, _renderer._renderPass, 0);
+        vkinit::graphicsPipelineCreateInfo(_fwdPipelineLayout, _renderer._fwdRenderPass, 0);
 
     // fixed function pipeline
     pipelineInfo.pVertexInputState = &vertexInputInfo;
@@ -669,7 +722,7 @@ void Application::createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLa
     // shared between the offscreen and composition pipelines
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-        vkinit::graphicsPipelineCreateInfo(_deferredPipelineLayout, _renderer._renderPass, 0); // composition pipeline uses swapchain render pass
+        vkinit::graphicsPipelineCreateInfo(_deferredPipelineLayout, _renderer._renderPass, 1); // composition pipeline uses swapchain render pass
 
     pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineCreateInfo.pStages = shaderStages.data();
@@ -700,7 +753,8 @@ void Application::createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLa
     vkDestroyShaderModule(_renderer._context.device, fragShaderModule, nullptr);
 
     // offscreen pipeline
-    pipelineCreateInfo.renderPass = _renderer._offscreenRenderPass;
+    pipelineCreateInfo.subpass = 0;
+    // pipelineCreateInfo.renderPass = _renderer._offscreenRenderPass;
 
     vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(OFF_VERT_SHADER));
     fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(OFF_FRAG_SHADER));
@@ -836,13 +890,14 @@ void Application::drawFrame() {
 
     // offscreen rendering (scene data for gbuffer and shadow map)
     submitInfo.waitSemaphoreCount   = 1;
-    submitInfo.pWaitSemaphores      = &_renderer._imageAvailableSemaphores[currentFrame];
+    submitInfo.pWaitSemaphores      = &_renderer._imageAvailableSemaphores[imageIndex];
 
-    submitInfo.signalSemaphoreCount = 1;
+    /*
+    submitInfo.signalSemaphoreCount = 0;
     submitInfo.pSignalSemaphores    = &_renderer._offScreenSemaphores[currentFrame];
     
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers    = &offScreenCommandBuffers[currentFrame];
+    submitInfo.pCommandBuffers = &_renderer._renderCommandBuffers[currentFrame];// offScreenCommandBuffers[currentFrame];
 
     if (vkQueueSubmit(_renderer._context.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
@@ -851,11 +906,12 @@ void Application::drawFrame() {
     // scene and Gui rendering
     submitInfo.waitSemaphoreCount   = 1;
     submitInfo.pWaitSemaphores      = &_renderer._offScreenSemaphores[currentFrame];
+    */
 
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores    = &_renderer._renderFinishedSemaphores[currentFrame];
+    submitInfo.pSignalSemaphores    = &_renderer._renderFinishedSemaphores[imageIndex];
 
-    std::array<VkCommandBuffer, 2> submitCommandBuffers = { renderCommandBuffers[imageIndex], imGuiCommandBuffers[imageIndex] };
+    std::array<VkCommandBuffer, 2> submitCommandBuffers = { _renderer._renderCommandBuffers[imageIndex], imGuiCommandBuffers[imageIndex] };
     submitInfo.commandBufferCount = static_cast<uint32_t>(submitCommandBuffers.size());
     submitInfo.pCommandBuffers    = submitCommandBuffers.data();
 
@@ -874,7 +930,7 @@ void Application::drawFrame() {
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores    = &_renderer._renderFinishedSemaphores[currentFrame];
+    presentInfo.pWaitSemaphores    = &_renderer._renderFinishedSemaphores[imageIndex];
 
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains    = _renderer._swapChain.get();

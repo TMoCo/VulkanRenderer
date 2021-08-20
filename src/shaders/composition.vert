@@ -1,6 +1,6 @@
 #version 450
-#extension GL_ARB_separate_shader_objects : enable
 
+// remove the need for this with input attachments
 layout (location = 0) out vec2 outUV;
 
 // shader taken from https://github.com/SaschaWillems/Vulkan/blob/master/data/shaders/glsl/deferred/deferred.vert

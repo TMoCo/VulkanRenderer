@@ -1,9 +1,9 @@
 #version 450
 
-layout (binding = 1) uniform sampler2D samplerPosition;
-layout (binding = 2) uniform sampler2D samplerNormal;
-layout (binding = 3) uniform sampler2D samplerAlbedo;
-layout (binding = 5) uniform sampler2DShadow samplerShadowMap;
+layout (binding = 1) uniform sampler2DShadow samplerShadowMap;
+layout (input_attachment_index = 0, set = 0, binding = 4) uniform subpassInput samplerPosition;
+layout (input_attachment_index = 1, set = 0, binding = 5) uniform subpassInput samplerNormal;
+layout (input_attachment_index = 2, set = 0, binding = 6) uniform subpassInput samplerAlbedo;
 
 struct Light {
 	vec4 position;
@@ -11,7 +11,7 @@ struct Light {
 	float radius;	
 };
 
-layout(binding = 4, std140) uniform UniformBufferObject {
+layout(binding = 3, std140) uniform UniformBufferObject {
 	vec4 viewPos;
 	mat4 depthMVP;
 	mat4 cameraMVP;
@@ -55,16 +55,13 @@ float computeShadow(vec4 shadowCoord) {
 	// return shadowNDC.z > texture(samplerShadowMap, shadowNDC.xy) ? 1.0f : 0.0f; // if fragment depth greater than depth to occluder, then fragment is in shadow
 }
 
-void filterPCF() {
-	return;
-}
 
 void main() 
 {   
 	// values from gbuffer attachments
-	vec4 fragPos = vec4(texture(samplerPosition, inUV).rgb, 1.0f); // no need to convert to world space thanks to image format
-	vec4 normal = texture(samplerNormal, inUV); 
-	vec4 albedo = texture(samplerAlbedo, inUV);
+	vec4 fragPos = subpassLoad(samplerPosition); // no need to convert to world space thanks to image format
+	vec4 normal = subpassLoad(samplerNormal); 
+	vec4 albedo = subpassLoad(samplerAlbedo);
 
 	// is fragment skybox? encoded in normal's w component
 	if (normal.w == 0.0f && ubo.viewPos.w != 5 ) {
@@ -121,7 +118,7 @@ void main()
 		// depth
 		case 4:
 			// encoded scene depth in alpha channel of position texture in previous render pass
-			outColor = vec4(vec3(texture(samplerPosition, inUV).a), 1.0f);
+			outColor = vec4(fragPos.www, 1.0f);
 			break;
 		// shadowmap value
 		case 5:

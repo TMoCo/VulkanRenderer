@@ -242,7 +242,7 @@ namespace vkinit {
         return commandBufferBegin;
     }
 
-    VkCommandBufferAllocateInfo commaneBufferAllocateInfo(
+    VkCommandBufferAllocateInfo commandBufferAllocateInfo(
         VkCommandPool commandPool,
         VkCommandBufferLevel level,
         UI32 commandBufferCount) {
@@ -348,6 +348,14 @@ namespace vkinit {
         renderPassBeginInfo.clearValueCount = clearValueCount;
         renderPassBeginInfo.pClearValues = pClearValues;
         return renderPassBeginInfo;
+    }
+
+    VkRenderPassCreateInfo renderPassCreateInfo (
+        VkRenderPassCreateFlags flags) {
+        VkRenderPassCreateInfo renderPassCreateInfo{};
+        renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        renderPassCreateInfo.flags = flags;
+        return renderPassCreateInfo;
     }
 
     //-----------------------------------------------------------------------------------------------------------//
