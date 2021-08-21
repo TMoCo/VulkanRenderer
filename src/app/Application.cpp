@@ -9,10 +9,10 @@
 #include <app/AppConstants.h>
 
 // include constants and utility
-#include <utils/utils.h>
-#include <utils/vkinit.h>
-#include <utils/Print.h>
-#include <utils/Assert.h>
+#include <common/utils.h>
+#include <common/vkinit.h>
+#include <common/Print.h>
+#include <common/Assert.h>
 
 #include <hpg/Shader.h>
 

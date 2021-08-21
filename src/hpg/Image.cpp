@@ -4,7 +4,7 @@
 
 #include <hpg/Image.h>
 
-#include <utils/Print.h>
+#include <common/Print.h>
 
 // image loading
 #include <stb_image.h>

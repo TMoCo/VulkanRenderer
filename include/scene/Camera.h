@@ -10,11 +10,10 @@
 #ifndef CAMERA_H
 #define CAMERA_H
 
-
-#include <utils/utils.h>
-
-#include <common/Orientation.h>
+#include <common/utils.h>
 #include <common/types.h>
+
+#include <math/Orientation.h>
 
 #include <glm/glm.hpp> // vectors, matrices
 #include <glm/gtc/quaternion.hpp> // the quaternions

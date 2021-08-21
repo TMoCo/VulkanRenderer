@@ -1,6 +1,6 @@
 #include <hpg/Renderer.h>
 
-#include <utils/vkinit.h>
+#include <common/vkinit.h>
 
 void Renderer::init(GLFWwindow* window) {
 	_context.init(window);

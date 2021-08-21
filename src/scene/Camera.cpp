@@ -2,10 +2,10 @@
 // Camera class definition
 //
 
-#include <utils/Assert.h>
-#include <utils/Print.h>
+#include <common/Assert.h>
+#include <common/Print.h>
 
-#include <common/Camera.h> // the camera class
+#include <scene/Camera.h> // the camera class
 
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/euler_angles.hpp>

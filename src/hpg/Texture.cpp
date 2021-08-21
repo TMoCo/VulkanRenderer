@@ -2,10 +2,10 @@
 // Texture class definition
 //
 
-#include <common/Texture.h>
+#include <hpg/Texture.h>
 
-#include <utils/utils.h> // utils namespace
-#include <utils/vkinit.h> // utils namespace
+#include <common/utils.h> // utils namespace
+#include <common/vkinit.h> // utils namespace
 
 // image loading
 #include <stb_image.h>

@@ -2,7 +2,7 @@
 // the utils namespace definition
 //
 
-#include <utils/utils.h>
+#include <common/utils.h>
 
 #include <glm/gtc/type_ptr.hpp> // construct vec from ptr
 

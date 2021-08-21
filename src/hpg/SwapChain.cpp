@@ -4,9 +4,9 @@
 
 #include <app/AppConstants.h>
 
-#include <common/Model.h>
+#include <scene/Model.h>
 
-#include <utils/vkinit.h>
+#include <common/vkinit.h>
 
 #include <hpg/SwapChain.h>// include the class declaration
 #include <hpg/Shader.h>   // include the shader struct 

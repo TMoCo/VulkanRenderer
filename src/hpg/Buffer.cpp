@@ -4,8 +4,8 @@
 
 #include <hpg/Buffer.h>
 
-#include <utils/utils.h>
-#include <utils/vkinit.h>
+#include <common/utils.h>
+#include <common/vkinit.h>
 
 void Buffer::cleanupBufferData(const VkDevice& device) {
     vkDestroyBuffer(device, _vkBuffer, nullptr);

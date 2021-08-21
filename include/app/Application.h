@@ -11,10 +11,11 @@
 #ifndef APPLICATION_H
 #define APPLICATION_H
 
-#include <common/Model.h> // the model class
-#include <common/Camera.h> // the camera struct
-#include <common/SpotLight.h>
 #include <common/types.h>
+
+#include <scene/Model.h> // the model class
+#include <scene/Camera.h> // the camera struct
+#include <scene/SpotLight.h>
 
 #include <math/primitives/Plane.h>
 #include <math/primitives/Cube.h>
@@ -25,6 +26,7 @@
 #include <hpg/SwapChain.h>
 #include <hpg/Buffer.h>
 #include <hpg/Skybox.h>
+#include <hpg/Texture.h>
 #include <hpg/ShadowMap.h>
 
 // glfw window library

@@ -1,6 +1,6 @@
 #include<app/AppConstants.h>
 
-#include <utils/vkinit.h>
+#include <common/vkinit.h>
 
 #include <hpg/ShadowMap.h>
 #include <hpg/Shader.h>

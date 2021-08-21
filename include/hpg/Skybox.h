@@ -13,7 +13,7 @@
 
 #include <glm/glm.hpp>
 
-#include <common/Model.h>
+#include <scene/Model.h>
 
 class Skybox {
 public: 

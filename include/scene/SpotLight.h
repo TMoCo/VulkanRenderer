@@ -5,8 +5,9 @@
 #ifndef SPOT_LIGHT_H
 #define SPOT_LIGHT_H
 
-#include <hpg/Image.h>
 #include <common/types.h>	
+
+#include <hpg/Image.h>
 
 #include <glm/gtc/matrix_transform.hpp>
 

@@ -8,11 +8,11 @@
 #include <string> // string class
 #include <iostream>
 
-#include <common/Model.h> // model class declaration
+#include <scene/Model.h> // model class declaration
 
-#include <utils/utils.h>
-#include <utils/Assert.h>
-#include <utils/Print.h>
+#include <common/utils.h>
+#include <common/Assert.h>
+#include <common/Print.h>
 
 // model loading
 #define TINYOBJLOADER_IMPLEMENTATION

@@ -10,8 +10,7 @@
 #define MODEL_H
 
 #include <hpg/Buffer.h> // buffers containing data
-
-#include <common/Texture.h> 
+#include <hpg/Texture.h> 
 
 #include <string> // string for model path
 #include <vector> // vector container

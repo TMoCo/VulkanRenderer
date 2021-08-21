@@ -6,8 +6,8 @@
 
 #include <app/AppConstants.h>
 
-#include <utils/Print.h>
-#include <utils/vkinit.h>
+#include <common/Print.h>
+#include <common/vkinit.h>
 
 #include <hpg/Skybox.h>
 #include <hpg/Buffer.h>

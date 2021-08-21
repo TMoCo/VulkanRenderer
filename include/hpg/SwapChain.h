@@ -11,7 +11,7 @@
 #ifndef VULKAN_SWAP_CHAIN_H
 #define VULKAN_SWAP_CHAIN_H
 
-#include <common/Model.h>
+#include <scene/Model.h>
 
 #include <hpg/VulkanContext.h> // for referencing the device
 

@@ -8,7 +8,8 @@
 #include <hpg/Image.h>
 
 #include <common/types.h>
-#include <common/Model.h>
+
+#include <scene/Model.h>
 
 class ShadowMap {
 public:
