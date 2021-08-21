@@ -95,18 +95,12 @@ private:
     //-Update uniform buffer-------------------------------------------------------------------------------------//
     void updateUniformBuffers(UI32 currentImage);
 
-    //-Command buffer initialisation functions-------------------------------------------------------------------//
-    void createCommandBuffers(UI32 count, VkCommandBuffer* commandBuffers, VkCommandPool& commandPool);
-
     //-Record command buffers for rendering (geom and gui)-------------------------------------------------------//
-    void buildCompositionCommandBuffer(UI32 cmdBufferIndex);
     void buildGuiCommandBuffer(UI32 cmdBufferIndex);
-    void buildOffscreenCommandBuffer(UI32 cmdBufferIndex);
     void buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer);
     void recordCommandBuffer(VkCommandBuffer cmdBuffer, UI32 index);
 
     //-Pipelines-------------------------------------------------------------------------------------------------//  
-    void createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout);
     void createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLayout);
 
     //-Window/Input Callbacks------------------------------------------------------------------------------------//
@@ -130,6 +124,7 @@ public:
 
     Renderer _renderer;
 
+    // TODO: MAKE SCENE MORE COHERENT
     Model model;
 
     Skybox skybox;
@@ -149,6 +144,7 @@ public:
     Plane floor;
     Cube cube;
 
+    // TODO: MOVE TO MATERIAL SYSTEM
     VkPipelineLayout _fwdPipelineLayout;
     VkPipeline       _fwdPipeline;
 
@@ -165,13 +161,9 @@ public:
     VkDescriptorSet skyboxDescriptorSet;
     VkDescriptorSet shadowMapDescriptorSet;
 
+    // TODO: UPDATE BUFFER MANAGEMENT
     Buffer _offScreenUniform;
     Buffer _compositionUniforms;
-
-    std::vector<VkCommandBuffer> offScreenCommandBuffers;
-    std::vector<VkCommandBuffer> renderCommandBuffers;
-
-    std::vector<VkCommandBuffer> imGuiCommandBuffers;
 
     glm::vec3 translate = glm::vec3(0.0f);
     glm::vec3 rotate = glm::vec3(0.0f);;

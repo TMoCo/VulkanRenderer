@@ -60,6 +60,7 @@ public:
 	void init(GLFWwindow* window);
 	void cleanup();
 	void recreateSwapchain();
+	void render();
 
 	inline F32 aspectRatio() { return _swapChain._aspectRatio; }
 
@@ -72,9 +73,7 @@ private:
 	void createCommandBuffers();
 
 	// TODO: merge renderpasses
-	void createFwdRenderPass();
 	void createGuiRenderPass();
-	void createOffscreenRenderPass(); 
 	void createRenderPass();
 
 public:
@@ -84,16 +83,14 @@ public:
 	// command pools and buffers
 	std::array<VkCommandPool, NUM_POOLS> _commandPools;
 	std::vector<VkCommandBuffer> _renderCommandBuffers;
+	std::vector<VkCommandBuffer> _guiCommandBuffers;
 
 	// swap chain
 	SwapChain _swapChain;
 
 	// frame buffers
 	std::vector<VkFramebuffer> _framebuffers;
-	std::vector<VkFramebuffer> _fwdFramebuffers;
 	std::vector<VkFramebuffer> _guiFramebuffers;
-	VkFramebuffer _offscreenFramebuffer;
-
 	// gbuffer
 	std::array<Attachment, NUM_GBUFFER_ATTACHMENTS> _gbuffer;
 
@@ -103,17 +100,17 @@ public:
 	// main render pass
 	// TODO: Merge render passes
 	VkRenderPass _renderPass;
-	VkRenderPass _fwdRenderPass;
 	VkRenderPass _guiRenderPass;
-	VkRenderPass _offscreenRenderPass;
 
 	// synchronisation
-	std::vector<VkSemaphore> _offScreenSemaphores;
 	std::vector<VkSemaphore> _imageAvailableSemaphores; // 1 semaphore per frame, GPU-GPU sync
 	std::vector<VkSemaphore> _renderFinishedSemaphores;
 
 	std::vector<VkFence> _inFlightFences; // 1 fence per frame, CPU-GPU sync
 	std::vector<VkFence> _imagesInFlight;
+
+	UI16 currentFrame = 0;
+	UI32 imageIndex = 0;
 };
 
 

@@ -103,8 +103,6 @@ void Application::buildScene() {
 void Application::initVulkan() {
     // swap chain independent
     createDescriptorSetLayout();
-
-    createForwardPipeline(&descriptorSetLayout);
     createDeferredPipelines(&descriptorSetLayout);
 
     shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
@@ -118,24 +116,10 @@ void Application::initVulkan() {
     createDescriptorPool();
     createDescriptorSets(_renderer._swapChain.imageCount());
 
-    renderCommandBuffers.resize(_renderer._swapChain.imageCount());
-    offScreenCommandBuffers.resize(_renderer._swapChain.imageCount());
-    imGuiCommandBuffers.resize(_renderer._swapChain.imageCount());
-
-    createCommandBuffers(_renderer._swapChain.imageCount(), renderCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
-    createCommandBuffers(_renderer._swapChain.imageCount(), offScreenCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
-
-    createCommandBuffers(_renderer._swapChain.imageCount(), imGuiCommandBuffers.data(), _renderer._commandPools[kCmdPools::GUI]);
-
     // record commands
     for (UI32 i = 0; i < _renderer._swapChain.imageCount(); i++) {
         buildShadowMapCommandBuffer(_renderer._renderCommandBuffers[i]);
         recordCommandBuffer(_renderer._renderCommandBuffers[i], i);
-
-        /*
-        buildOffscreenCommandBuffer(i); // offscreen gbuffer commands
-        buildCompositionCommandBuffer(i); // final image composition
-        */
     }
 }
 
@@ -150,14 +134,6 @@ void Application::recreateVulkanData() {
 
     vkDeviceWaitIdle(_renderer._context.device); // wait if in use by device
 
-    // destroy old swap chain dependencies
-    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::GUI], 
-        static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data());
-
-    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::RENDER], 
-        static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data());
-    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::RENDER], 
-        static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data());
 
     shadowMap.cleanupShadowMap();
 
@@ -168,15 +144,9 @@ void Application::recreateVulkanData() {
 
     createDescriptorSets(_renderer._swapChain.imageCount());
 
-    createCommandBuffers(_renderer._swapChain.imageCount(), renderCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
-    createCommandBuffers(_renderer._swapChain.imageCount(), offScreenCommandBuffers.data(), _renderer._commandPools[kCmdPools::RENDER]);
-
-    createCommandBuffers(_renderer._swapChain.imageCount(), imGuiCommandBuffers.data(), _renderer._commandPools[kCmdPools::GUI]);
-
     for (UI32 i = 0; i < _renderer._swapChain.imageCount(); i++) {
-        buildOffscreenCommandBuffer(i);
-        buildCompositionCommandBuffer(i);
-        buildShadowMapCommandBuffer(offScreenCommandBuffers[i]);
+        buildShadowMapCommandBuffer(_renderer._renderCommandBuffers[i]);
+        recordCommandBuffer(_renderer._renderCommandBuffers[i], i);
     }
 
     // update ImGui aswell
@@ -426,46 +396,10 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
 
 // Command buffers
 
-void Application::createCommandBuffers(UI32 count, VkCommandBuffer* commandBuffers, VkCommandPool& commandPool) {
-    VkCommandBufferAllocateInfo allocInfo = vkinit::commandBufferAllocateInfo(commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, count);
-    if (vkAllocateCommandBuffers(_renderer._context.device, &allocInfo, commandBuffers) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate command buffers!");
-    }
-}
-
-void Application::buildCompositionCommandBuffer(UI32 cmdBufferIndex) {
-    VkCommandBufferBeginInfo commandBufferBeginInfo = vkinit::commandBufferBeginInfo();
-
-    std::array<VkClearValue, 2> clearValues{};
-    clearValues[0].color           = { 0.0f, 0.0f, 0.0f, 1.0f };
-    clearValues[1].depthStencil    = { 1.0f, 0 };
-
-    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._fwdRenderPass,
-        _renderer._fwdFramebuffers[cmdBufferIndex], _renderer._swapChain.extent(), static_cast<UI32>(clearValues.size()),
-        clearValues.data());
-
-    // implicitly resets cmd buffer
-    if (vkBeginCommandBuffer(renderCommandBuffers[cmdBufferIndex], &commandBufferBeginInfo) != VK_SUCCESS) {
-        throw std::runtime_error("failed to begin recording command buffer!");
-    }
-    
-    vkCmdBeginRenderPass(renderCommandBuffers[cmdBufferIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(renderCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, _compositionPipeline);
-    vkCmdBindDescriptorSets(renderCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, 
-        _deferredPipelineLayout, 0, 1, &compositionDescriptorSets[cmdBufferIndex], 0, nullptr);
-    // draw a single triangle
-    vkCmdDraw(renderCommandBuffers[cmdBufferIndex], 3, 1, 0, 0);
-    vkCmdEndRenderPass(renderCommandBuffers[cmdBufferIndex]);
-
-    if (vkEndCommandBuffer(renderCommandBuffers[cmdBufferIndex]) != VK_SUCCESS) {
-        throw std::runtime_error("failed to record command buffer!");
-    }
-}
-
 void Application::buildGuiCommandBuffer(UI32 cmdBufferIndex) {
     VkCommandBufferBeginInfo commandbufferInfo = vkinit::commandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-    if (vkBeginCommandBuffer(imGuiCommandBuffers[cmdBufferIndex], &commandbufferInfo) != VK_SUCCESS) {
+    if (vkBeginCommandBuffer(_renderer._guiCommandBuffers[cmdBufferIndex], &commandbufferInfo) != VK_SUCCESS) {
         throw std::runtime_error("failed to begin recording command buffer!");
     }
 
@@ -476,58 +410,14 @@ void Application::buildGuiCommandBuffer(UI32 cmdBufferIndex) {
     VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._guiRenderPass,
         _renderer._guiFramebuffers[cmdBufferIndex], _renderer._swapChain.extent(), 1, &clearValue);
 
-    vkCmdBeginRenderPass(imGuiCommandBuffers[cmdBufferIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(_renderer._guiCommandBuffers[cmdBufferIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
     ImGui::Render();
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), imGuiCommandBuffers[cmdBufferIndex]); // ends imgui render
-    vkCmdEndRenderPass(imGuiCommandBuffers[cmdBufferIndex]);
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), _renderer._guiCommandBuffers[cmdBufferIndex]); // ends imgui render
+    vkCmdEndRenderPass(_renderer._guiCommandBuffers[cmdBufferIndex]);
 
-    if (vkEndCommandBuffer(imGuiCommandBuffers[cmdBufferIndex]) != VK_SUCCESS) {
+    if (vkEndCommandBuffer(_renderer._guiCommandBuffers[cmdBufferIndex]) != VK_SUCCESS) {
         throw std::runtime_error("failed to record ImGui command buffer!");
     }
-}
-
-void Application::buildOffscreenCommandBuffer(UI32 cmdBufferIndex) {
-    VkCommandBufferBeginInfo commandBufferBeginInfo = vkinit::commandBufferBeginInfo();
-
-    // Clear values for all attachments written in the fragment shader
-    std::array<VkClearValue, 4> clearValues{};
-    clearValues[0].color = { 0.0f, 0.0f, 0.0f, 0.0f };
-    clearValues[1].color = { 0.0f, 0.0f, 0.0f, 0.0f };
-    clearValues[2].color = { 0.0f, 0.0f, 0.0f, 0.0f };
-    clearValues[3].depthStencil = { 1.0f, 0 };
-
-    VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._offscreenRenderPass,
-        _renderer._offscreenFramebuffer, _renderer._swapChain.extent(), 
-        static_cast<uint32_t>(clearValues.size()), clearValues.data());
-
-    // implicitly resets cmd buffer
-    if (vkBeginCommandBuffer(offScreenCommandBuffers[cmdBufferIndex], &commandBufferBeginInfo) != VK_SUCCESS) {
-        throw std::runtime_error("failed to begin recording command buffer!");
-    }
-
-    vkCmdBeginRenderPass(offScreenCommandBuffers[cmdBufferIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-    // scene pipeline
-    vkCmdBindPipeline(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, _offScreenPipeline);
-    vkCmdBindDescriptorSets(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, _deferredPipelineLayout, 0, 1,
-        &offScreenDescriptorSet, 0, nullptr);
-    VkDeviceSize offset = 0; // offset into vertex buffer
-    vkCmdBindVertexBuffers(offScreenCommandBuffers[cmdBufferIndex], 0, 1, &vertexBuffer._vkBuffer, &offset);
-    vkCmdBindIndexBuffer(offScreenCommandBuffers[cmdBufferIndex], indexBuffer._vkBuffer, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(offScreenCommandBuffers[cmdBufferIndex], model.getNumIndices(0) + 6, 1, 0, 0, 0);
-
-    // skybox pipeline
-    vkCmdBindPipeline(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, _skyboxPipeline);
-    vkCmdBindDescriptorSets(offScreenCommandBuffers[cmdBufferIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, _deferredPipelineLayout, 0, 1,
-        &skyboxDescriptorSet, 0, nullptr);
-    vkCmdBindVertexBuffers(offScreenCommandBuffers[cmdBufferIndex], 0, 1, &skybox.vertexBuffer._vkBuffer, &offset);
-    vkCmdDraw(offScreenCommandBuffers[cmdBufferIndex], 36, 1, 0, 0);
-
-    vkCmdEndRenderPass(offScreenCommandBuffers[cmdBufferIndex]);
-
-    //if (vkEndCommandBuffer(offScreenCommandBuffers[cmdBufferIndex]) != VK_SUCCESS) {
-    //    throw std::runtime_error("failed to record command buffer!");
-    //}
 }
 
 void Application::buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer) {
@@ -580,11 +470,20 @@ void Application::recordCommandBuffer(VkCommandBuffer cmdBuffer, UI32 index) {
     clearValues[kAttachments::GBUFFER_ALBEDO].color = clearValues[kAttachments::GBUFFER_NORMAL].color;
     clearValues[kAttachments::GBUFFER_DEPTH].depthStencil = { 1.0f, 0 };
 
+    VkViewport viewport{ 0.0f, 0.0f, (F32)_renderer._swapChain.extent().width, 
+        (F32)_renderer._swapChain.extent().height, 0.0f, 1.0f };
+
+    VkRect2D scissor{ { 0, 0 }, _renderer._swapChain.extent() };
+
+
     VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._renderPass,
         _renderer._framebuffers[index], _renderer._swapChain.extent(), kAttachments::NUM_ATTACHMENTS, clearValues);
 
     // 1: offscreen scene render into gbuffer
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+    vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
     // scene pipeline
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _offScreenPipeline);
@@ -605,6 +504,8 @@ void Application::recordCommandBuffer(VkCommandBuffer cmdBuffer, UI32 index) {
     // 2: composition to screen
     vkCmdNextSubpass(cmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
 
+    //vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _compositionPipeline);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
         _deferredPipelineLayout, 0, 1, &compositionDescriptorSets[index], 0, nullptr);
@@ -617,68 +518,7 @@ void Application::recordCommandBuffer(VkCommandBuffer cmdBuffer, UI32 index) {
     }
 }
 
-void Application::createForwardPipeline(VkDescriptorSetLayout* descriptorSetLayout) {
-    VkShaderModule vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(FWD_VERT_SHADER));
-    VkShaderModule fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(FWD_FRAG_SHADER));
-
-    auto bindingDescription = Model::getBindingDescriptions(0);
-    auto attributeDescriptions = Model::getAttributeDescriptions(0);
-
-    VkViewport viewport{ 0.0f, 0.0f, (F32)_renderer._swapChain.extent().width, (F32)_renderer._swapChain.extent().height, 0.0f, 1.0f };
-    VkRect2D scissor{ { 0, 0 }, _renderer._swapChain.extent() };
-
-    VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-    colorBlendAttachment.colorWriteMask =
-        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment.blendEnable = VK_FALSE;
-
-    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {
-        vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main"),
-        vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main")
-    };
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo =
-        vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription,
-            static_cast<uint32_t>(attributeDescriptions.size()), attributeDescriptions.data());
-    VkPipelineInputAssemblyStateCreateInfo inputAssembly =
-        vkinit::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
-    VkPipelineViewportStateCreateInfo viewportState =
-        vkinit::pipelineViewportStateCreateInfo(1, &viewport, 1, &scissor);
-    VkPipelineRasterizationStateCreateInfo rasterizer =
-        vkinit::pipelineRasterStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
-    VkPipelineMultisampleStateCreateInfo multisampling =
-        vkinit::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
-    VkPipelineColorBlendStateCreateInfo colorBlending =
-        vkinit::pipelineColorBlendStateCreateInfo(1, &colorBlendAttachment);
-    VkPipelineDepthStencilStateCreateInfo depthStencil =
-        vkinit::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS);
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo =
-        vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
-
-    if (vkCreatePipelineLayout(_renderer._context.device, &pipelineLayoutInfo, nullptr, &_fwdPipelineLayout) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create pipeline layout!");
-    }
-
-    VkGraphicsPipelineCreateInfo pipelineInfo = 
-        vkinit::graphicsPipelineCreateInfo(_fwdPipelineLayout, _renderer._fwdRenderPass, 0);
-
-    // fixed function pipeline
-    pipelineInfo.pVertexInputState = &vertexInputInfo;
-    pipelineInfo.pInputAssemblyState = &inputAssembly;
-    pipelineInfo.pViewportState = &viewportState;
-    pipelineInfo.pRasterizationState = &rasterizer;
-    pipelineInfo.pMultisampleState = &multisampling;
-    pipelineInfo.pColorBlendState = &colorBlending;
-    pipelineInfo.pDepthStencilState = &depthStencil;
-    pipelineInfo.stageCount = static_cast<UI32>(shaderStages.size());
-    pipelineInfo.pStages = shaderStages.data();
-
-    if (vkCreateGraphicsPipelines(_renderer._context.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &_fwdPipeline) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create graphics pipeline!");
-    }
-
-    vkDestroyShaderModule(_renderer._context.device, fragShaderModule, nullptr);
-    vkDestroyShaderModule(_renderer._context.device, vertShaderModule, nullptr);
-}
+// pipelines
 
 void Application::createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLayout) {
 
@@ -692,9 +532,6 @@ void Application::createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLa
         VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     VkPipelineColorBlendAttachmentState colorBlendAttachment =
         vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE);
-
-    VkViewport viewport{ 0.0f, 0.0f, (F32)_renderer._swapChain.extent().width, (F32)_renderer._swapChain.extent().height, 0.0f, 1.0f };
-    VkRect2D scissor{ { 0, 0 }, _renderer._swapChain.extent() };
 
     VkShaderModule vertShaderModule, fragShaderModule;
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
@@ -712,15 +549,19 @@ void Application::createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLa
         vkinit::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
 
     VkPipelineViewportStateCreateInfo      viewportStateInfo =
-        vkinit::pipelineViewportStateCreateInfo(1, &viewport, 1, &scissor);
+        vkinit::pipelineViewportStateCreateInfo(1, nullptr, 1, nullptr);
 
     VkPipelineMultisampleStateCreateInfo   multisamplingStateInfo =
         vkinit::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
 
     VkPipelineLayoutCreateInfo             pipelineLayoutInfo =
         vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
-    // shared between the offscreen and composition pipelines
 
+    // dynamic view port for resizing
+    VkDynamicState dynamicStateEnables[2] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = vkinit::pipelineDynamicStateCreateInfo(dynamicStateEnables, 2);
+
+    // shared between the offscreen and composition pipelines
     VkGraphicsPipelineCreateInfo pipelineCreateInfo =
         vkinit::graphicsPipelineCreateInfo(_deferredPipelineLayout, _renderer._renderPass, 1); // composition pipeline uses swapchain render pass
 
@@ -732,6 +573,7 @@ void Application::createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLa
     pipelineCreateInfo.pMultisampleState = &multisamplingStateInfo;
     pipelineCreateInfo.pDepthStencilState = &depthStencilStateInfo;
     pipelineCreateInfo.pColorBlendState = &colorBlendingStateInfo;
+    pipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
 
     // composition pipeline
     vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(COMP_VERT_SHADER));
@@ -836,6 +678,8 @@ void Application::mainLoop() {
         // sets the current GUI
         setGUI();
 
+        _renderer.render();
+
         // draw the frame
         drawFrame();
 
@@ -890,28 +734,12 @@ void Application::drawFrame() {
 
     // offscreen rendering (scene data for gbuffer and shadow map)
     submitInfo.waitSemaphoreCount   = 1;
-    submitInfo.pWaitSemaphores      = &_renderer._imageAvailableSemaphores[imageIndex];
-
-    /*
-    submitInfo.signalSemaphoreCount = 0;
-    submitInfo.pSignalSemaphores    = &_renderer._offScreenSemaphores[currentFrame];
-    
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &_renderer._renderCommandBuffers[currentFrame];// offScreenCommandBuffers[currentFrame];
-
-    if (vkQueueSubmit(_renderer._context.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
-        throw std::runtime_error("failed to submit draw command buffer!");
-    }
-
-    // scene and Gui rendering
-    submitInfo.waitSemaphoreCount   = 1;
-    submitInfo.pWaitSemaphores      = &_renderer._offScreenSemaphores[currentFrame];
-    */
+    submitInfo.pWaitSemaphores      = &_renderer._imageAvailableSemaphores[currentFrame];
 
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores    = &_renderer._renderFinishedSemaphores[imageIndex];
+    submitInfo.pSignalSemaphores    = &_renderer._renderFinishedSemaphores[currentFrame];
 
-    std::array<VkCommandBuffer, 2> submitCommandBuffers = { _renderer._renderCommandBuffers[imageIndex], imGuiCommandBuffers[imageIndex] };
+    std::array<VkCommandBuffer, 2> submitCommandBuffers = { _renderer._renderCommandBuffers[imageIndex], _renderer._guiCommandBuffers[imageIndex] };
     submitInfo.commandBufferCount = static_cast<uint32_t>(submitCommandBuffers.size());
     submitInfo.pCommandBuffers    = submitCommandBuffers.data();
 
@@ -930,7 +758,7 @@ void Application::drawFrame() {
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores    = &_renderer._renderFinishedSemaphores[imageIndex];
+    presentInfo.pWaitSemaphores    = &_renderer._renderFinishedSemaphores[currentFrame];
 
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains    = _renderer._swapChain.get();
@@ -1121,14 +949,6 @@ void Application::cleanup() {
     _offScreenUniform.cleanupBufferData(_renderer._context.device);
     _compositionUniforms.cleanupBufferData(_renderer._context.device);
 
-    // destroy whatever is dependent on the old swap chain
-    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::RENDER], static_cast<uint32_t>(renderCommandBuffers.size()), renderCommandBuffers.data());
-    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::RENDER], static_cast<uint32_t>(offScreenCommandBuffers.size()), offScreenCommandBuffers.data());
-    vkFreeCommandBuffers(_renderer._context.device, _renderer._commandPools[kCmdPools::GUI], static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data());
-
-    // call the function we created for destroying the swap chain and frame buffers
-    // in the reverse order of their creation
-    // gBuffer.cleanupGBuffer();
 
     // cleanup the descriptor pools and descriptor set layouts
     vkDestroyDescriptorPool(_renderer._context.device, descriptorPool, nullptr);

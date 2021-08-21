@@ -18,10 +18,7 @@ void Renderer::init(GLFWwindow* window) {
 
     // build render pass
     createRenderPass();
-
-    createFwdRenderPass();
     createGuiRenderPass();
-    createOffscreenRenderPass();
 
     createFramebuffers();
 
@@ -37,16 +34,13 @@ void Renderer::cleanup() {
     for (UI32 i = 0; i < _swapChain.imageCount(); i++) {
         vkDestroySemaphore(_context.device, _renderFinishedSemaphores[i], nullptr);
         vkDestroySemaphore(_context.device, _imageAvailableSemaphores[i], nullptr);
-        vkDestroySemaphore(_context.device, _offScreenSemaphores[i], nullptr);
         vkDestroyFence(_context.device, _inFlightFences[i], nullptr);
     }
 
     for (size_t i = 0; i < _swapChain.imageCount(); i++) {
         vkDestroyFramebuffer(_context.device, _framebuffers[i], nullptr);
         vkDestroyFramebuffer(_context.device, _guiFramebuffers[i], nullptr);
-        vkDestroyFramebuffer(_context.device, _fwdFramebuffers[i], nullptr);
     }
-    vkDestroyFramebuffer(_context.device, _offscreenFramebuffer, nullptr);
 
     for (auto& attachment : _gbuffer) {
         attachment.cleanup(&_context);
@@ -55,9 +49,7 @@ void Renderer::cleanup() {
     vkDestroySampler(_context.device, _colorSampler, nullptr);
 
     // destroy the render passes
-    vkDestroyRenderPass(_context.device, _fwdRenderPass, nullptr);
     vkDestroyRenderPass(_context.device, _guiRenderPass, nullptr);
-    vkDestroyRenderPass(_context.device, _offscreenRenderPass, nullptr);
     vkDestroyRenderPass(_context.device, _renderPass, nullptr);
 
     _swapChain.cleanup();
@@ -72,13 +64,17 @@ void Renderer::recreateSwapchain() {
 
     vkFreeCommandBuffers(_context.device, _commandPools[RENDER], 
         static_cast<UI32>(_renderCommandBuffers.size()), _renderCommandBuffers.data());
+    vkFreeCommandBuffers(_context.device, _commandPools[RENDER],
+        static_cast<UI32>(_guiCommandBuffers.size()), _guiCommandBuffers.data());
 
     // destroy previous swapchain and dependencies 
     for (UI32 i = 0; i < _swapChain.imageCount(); i++) {
         vkDestroyFramebuffer(_context.device, _framebuffers[i], nullptr);
         vkDestroyFramebuffer(_context.device, _guiFramebuffers[i], nullptr);
-        vkDestroyFramebuffer(_context.device, _fwdFramebuffers[i], nullptr);
     }
+
+    vkDestroyRenderPass(_context.device, _guiRenderPass, nullptr);
+    vkDestroyRenderPass(_context.device, _renderPass, nullptr);
 
     for (auto& attachment : _gbuffer) {
         attachment.cleanup(&_context);
@@ -95,9 +91,16 @@ void Renderer::recreateSwapchain() {
     createAttachment(_gbuffer[ALBEDO], 0x94, _swapChain.extent(), VK_FORMAT_R8G8B8A8_SRGB);
     createAttachment(_gbuffer[DEPTH], 0xa4, _swapChain.extent(), utils::findDepthFormat(_context.physicalDevice));
 
+    createRenderPass();
+    createGuiRenderPass();
+
     createFramebuffers();
 
     createCommandBuffers();
+}
+
+void Renderer::render() {
+    // TODO: update uniform management and gui setup before moving render out of application class
 }
 
 void Renderer::createCommandPool(VkCommandPool* commandPool, VkCommandPoolCreateFlags flags) {
@@ -112,7 +115,6 @@ void Renderer::createCommandPool(VkCommandPool* commandPool, VkCommandPoolCreate
 void Renderer::createSyncObjects() {
     _imageAvailableSemaphores.resize(_swapChain.imageCount());
     _renderFinishedSemaphores.resize(_swapChain.imageCount());
-    _offScreenSemaphores.resize(_swapChain.imageCount());
 
     _inFlightFences.resize(_swapChain.imageCount());
     _imagesInFlight.resize(_swapChain.imageCount(), VK_NULL_HANDLE);
@@ -123,8 +125,7 @@ void Renderer::createSyncObjects() {
 
     for (UI32 i = 0; i < _swapChain.imageCount(); i++) {
         if (vkCreateSemaphore(_context.device, &semaphoreCreateInfo, nullptr, &_imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(_context.device, &semaphoreCreateInfo, nullptr, &_renderFinishedSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(_context.device, &semaphoreCreateInfo, nullptr, &_offScreenSemaphores[i]) != VK_SUCCESS) {
+            vkCreateSemaphore(_context.device, &semaphoreCreateInfo, nullptr, &_renderFinishedSemaphores[i]) != VK_SUCCESS) {
             throw std::runtime_error("failed to create semaphores!");
         }
         if (vkCreateFence(_context.device, &fenceCreateInfo, nullptr, &_inFlightFences[i]) != VK_SUCCESS) {
@@ -135,7 +136,6 @@ void Renderer::createSyncObjects() {
 
 void Renderer::createFramebuffers() {
     _framebuffers.resize(_swapChain.imageCount());
-    _fwdFramebuffers.resize(_swapChain.imageCount());
     _guiFramebuffers.resize(_swapChain.imageCount());
 
     VkFramebufferCreateInfo framebufferCreateInfo; 
@@ -154,14 +154,6 @@ void Renderer::createFramebuffers() {
     attachmentViews[kAttachments::GBUFFER_DEPTH]    = _gbuffer[kGbuffer::DEPTH]._view;
 
     for (UI32 i = 0; i < _swapChain.imageCount(); i++) {
-        // old framebuffer
-        framebufferCreateInfo = vkinit::framebufferCreateInfo(_fwdRenderPass,
-            1, &_swapChain._imageViews[i], _swapChain.extent(), 1); // only need colour attachment
-      
-        if (vkCreateFramebuffer(_context.device, &framebufferCreateInfo, nullptr, &_fwdFramebuffers[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create framebuffer!");
-        }
-
         // gui framebuffer
         framebufferCreateInfo = vkinit::framebufferCreateInfo(_guiRenderPass, 
             1, &_swapChain._imageViews[i], _swapChain.extent(), 1);
@@ -180,13 +172,6 @@ void Renderer::createFramebuffers() {
         if (vkCreateFramebuffer(_context.device, &framebufferCreateInfo, nullptr, &_framebuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("failed to create framebuffer!");
         }
-    }
-
-    framebufferCreateInfo = vkinit::framebufferCreateInfo(_offscreenRenderPass, 
-        kGbuffer::NUM_GBUFFER_ATTACHMENTS, gbufferViews.data(), _swapChain.extent(), 1);
-
-    if (vkCreateFramebuffer(_context.device, &framebufferCreateInfo, nullptr, &_offscreenFramebuffer) != VK_SUCCESS) {
-        throw std::runtime_error("Could not create GBuffer's frame buffer");
     }
 }
 
@@ -229,111 +214,14 @@ void Renderer::createColorSampler() {
 
 void Renderer::createCommandBuffers() {
     _renderCommandBuffers.resize(_swapChain.imageCount());
+    _guiCommandBuffers.resize(_swapChain.imageCount());
     VkCommandBufferAllocateInfo allocInfo = vkinit::commandBufferAllocateInfo(_commandPools[RENDER], 
         VK_COMMAND_BUFFER_LEVEL_PRIMARY, _swapChain.imageCount());
     if (vkAllocateCommandBuffers(_context.device, &allocInfo, _renderCommandBuffers.data()) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate command buffers!");
     }
-}
-
-void Renderer::createFwdRenderPass() {
-    VkAttachmentDescription colorAttachment{};
-    colorAttachment.format = _swapChain.format(); // sc image format
-    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    // specify a depth attachment to the render pass
-    VkAttachmentDescription depthAttachment{};
-    depthAttachment.format = utils::findDepthFormat(_context.physicalDevice); // same format as depth image
-    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    /**************************************************************************************************************
-    * A single render pass consists of multiple subpasses, which are subsequent rendering operations depending on *  
-    * content of framebuffers on previous passes (eg post processing). Grouping subpasses into a single render    *
-    * pass lets Vulkan optimise every subpass references 1 or more attachments.                                   *
-    **************************************************************************************************************/
-
-    VkAttachmentReference colorAttachmentRef{};
-    colorAttachmentRef.attachment = 0;
-    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // which layout during a subpass
-
-    VkAttachmentReference depthAttachmentRef{};
-    depthAttachmentRef.attachment = 1;
-    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    // the subpass
-    VkSubpassDescription subpass{};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; // explicit a graphics subpass 
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &colorAttachmentRef;
-    subpass.pDepthStencilAttachment = nullptr; // &depthAttachmentRef;
-
-    /**************************************************************************************************************
-    // subpass dependencies control the image layout transitions. They specify memory and execution of dependencies
-    // between subpasses there are implicit subpasses right before and after the render pass
-    // There are two built-in dependencies that take care of the transition at the start of the render pass and at
-    // the end, but the former does not occur at the right time as it assumes that the transition occurs at the
-    // start of the pipeline, but we haven't acquired the image yet there are two ways to deal with the problem:
-    // - change waitStages of the imageAvailableSemaphore (in drawframe) to VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-    // this ensures that the render pass does not start until image is available.
-    // - make the render pass wait for the VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT stage.
-    **************************************************************************************************************/
-
-    VkSubpassDependency dependency = {};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.srcAccessMask = 0;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-    /*
-    std::array<VkSubpassDependency, 2> dependencies; // see struct definition for more details
-    dependencies[0] = { VK_SUBPASS_EXTERNAL, 0, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_MEMORY_READ_BIT,
-        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0 };
-
-    dependencies[1] = { 0, VK_SUBPASS_EXTERNAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        VK_ACCESS_MEMORY_READ_BIT, 0 };
-    */
-
-    /**************************************************************************************************************
-    // Specify the operations to wait on and stages when ops occur.
-    // Need to wait for swap chain to finish reading, can be accomplished by waiting on the colour attachment
-    // output stage.
-    // Need to make sure there are no conflicts between transitionning og the depth image and it being cleared as
-    // part of its load operation.
-    // The depth image is first accessed in the early fragment test pipeline stage and because we have a load
-    // operation that clears, we should specify the access mask for writes.
-    **************************************************************************************************************/
-
-    // create the render pass
-    std::array<VkAttachmentDescription, 1> attachments = { colorAttachment }; // , depthAttachment };
-    VkRenderPassCreateInfo renderPassInfo{};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = static_cast<UI32>(attachments.size());
-    renderPassInfo.pAttachments = attachments.data();
-    renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses = &subpass; // associated supass
-    // specify the dependency
-    renderPassInfo.dependencyCount = 1;// static_cast<uint32_t>(dependencies.size());
-    renderPassInfo.pDependencies = &dependency;// dependencies.data();
-
-    // explicitly create the renderpass
-    if (vkCreateRenderPass(_context.device, &renderPassInfo, nullptr, &_fwdRenderPass) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create render pass!");
+    if (vkAllocateCommandBuffers(_context.device, &allocInfo, _guiCommandBuffers.data()) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate command buffers!");
     }
 }
 
@@ -376,79 +264,6 @@ void Renderer::createGuiRenderPass() {
 
     if (vkCreateRenderPass(_context.device, &info, nullptr, &_guiRenderPass) != VK_SUCCESS) {
         throw std::runtime_error("Could not create Dear ImGui's render pass");
-    }
-}
-
-void Renderer::createOffscreenRenderPass() {
-    // attachment descriptions and references
-    std::array<VkAttachmentDescription, NUM_GBUFFER_ATTACHMENTS> attachmentDescriptions = {};
-
-    VkAttachmentDescription attachmentDescription{};
-    attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-    attachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    // color attachments
-    attachmentDescription.format = _gbuffer[POSITION]._image._format;
-    attachmentDescriptions[POSITION] = attachmentDescription;
-
-    attachmentDescription.format = _gbuffer[NORMAL]._image._format;
-    attachmentDescriptions[NORMAL] = attachmentDescription;
-
-    attachmentDescription.format = _gbuffer[ALBEDO]._image._format;
-    attachmentDescriptions[ALBEDO] = attachmentDescription;
-
-    // depth attachment
-    attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    attachmentDescription.format = _gbuffer[DEPTH]._image._format;
-    attachmentDescriptions[DEPTH] = attachmentDescription;
-
-    // attachment references
-    std::vector<VkAttachmentReference> colourReferences;
-    colourReferences.push_back({ POSITION, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
-    colourReferences.push_back({ NORMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
-    colourReferences.push_back({ ALBEDO, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
-
-    VkAttachmentReference depthReference = { DEPTH, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
-
-    VkSubpassDescription subpass{}; // create subpass
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.pColorAttachments = colourReferences.data();
-    subpass.colorAttachmentCount = static_cast<uint32_t>(colourReferences.size());
-    subpass.pDepthStencilAttachment = &depthReference;
-
-    std::array<VkSubpassDependency, 2> dependencies{}; // dependencies for attachment layout transition
-
-    dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependencies[0].dstSubpass = 0;
-    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-    dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-
-    dependencies[1].srcSubpass = 0;
-    dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
-    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[1].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-    dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-    dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-
-    VkRenderPassCreateInfo renderPassInfo = {};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = static_cast<uint32_t>(attachmentDescriptions.size());
-    renderPassInfo.pAttachments    = attachmentDescriptions.data();
-    renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses   = &subpass;
-    renderPassInfo.dependencyCount = 2;
-    renderPassInfo.pDependencies   = dependencies.data();
-
-    if (vkCreateRenderPass(_context.device, &renderPassInfo, nullptr, &_offscreenRenderPass) != VK_SUCCESS) {
-        throw std::runtime_error("Could not create GBuffer's render pass");
     }
 }
 
@@ -531,7 +346,7 @@ void Renderer::createRenderPass() {
     std::array<VkSubpassDependency, 3> dependencies{};
 
     dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependencies[0].dstSubpass = 0;
+    dependencies[0].dstSubpass = kSubpasses::OFFSCREEN;
     dependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
     dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
@@ -540,15 +355,15 @@ void Renderer::createRenderPass() {
 
     // transition from color attachment to fragment shader read
 
-    dependencies[1].srcSubpass = 0;
-    dependencies[1].dstSubpass = 1;
+    dependencies[1].srcSubpass = kSubpasses::OFFSCREEN;
+    dependencies[1].dstSubpass = kSubpasses::COMPOSITION;
     dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
     dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
     dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-    dependencies[2].srcSubpass = 1;
+    dependencies[2].srcSubpass = kSubpasses::COMPOSITION;
     dependencies[2].dstSubpass = VK_SUBPASS_EXTERNAL;
     dependencies[2].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dependencies[2].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
