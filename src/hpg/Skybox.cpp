@@ -113,7 +113,7 @@ void Skybox::createSkyboxImage(const VkCommandPool& commandPool) {
     for (auto& format : formats) {
         auto details = Image::queryFormatSupport(vkSetup->physicalDevice, format, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
-        PRINT("format %i details:\nmax array layers = %i\n", format, details.properties.maxArrayLayers);
+        print("format %i details:\nmax array layers = %i\n", format, details.properties.maxArrayLayers);
     }
     */
 

@@ -15,10 +15,12 @@ layout(location = 0) in vec3 inTexCoord;
 layout (location = 0) out vec4 outPosition;
 layout (location = 1) out vec4 outNormal;
 layout (location = 2) out vec4 outAlbedo;
+layout (location = 3) out vec4 outMetallicRoughness;
 
 void main() {
 	outPosition = vec4(inTexCoord, 1.0f);
 	outNormal = vec4(0.0f);
 	outAlbedo = vec4(inTexCoord, 1.0f);
 	outAlbedo = texture(skybox, inTexCoord);
+	outMetallicRoughness = vec4(0.0f);
 }

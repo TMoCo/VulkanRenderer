@@ -19,7 +19,7 @@ public:
 		glm::mat4 proj = glm::perspective(glm::radians(45.0f), 1.0f, nearZ, farZ);
 		glm::mat4 view = glm::lookAt(direction, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
 		//proj[1][1] *= -1.0f;
-		proj[0][0] *= -1.0f;
+		//proj[0][0] *= -1.0f;
 		return proj * view * model;
 	}
 

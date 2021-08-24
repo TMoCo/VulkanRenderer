@@ -14,10 +14,10 @@ public:
 
 	std::vector<Model::Vertex> getVertices() {
 		return {
-			{ {-extentX, -2.0f, extentY}, { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
-			{ {extentX, -2.0f, extentY}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f} },
-			{ {extentX, -2.0f, -extentY}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f} },
-			{ {-extentX, -2.0f, -extentY}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f} }
+			{ {-extentX, -2.0f, extentY}, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
+			{ {extentX, -2.0f, extentY}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f} },
+			{ {extentX, -2.0f, -extentY}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f} },
+			{ {-extentX, -2.0f, -extentY}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f} }
 		};
 	}
 

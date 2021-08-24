@@ -6,6 +6,10 @@ C:/VulkanSDK/1.2.162.1/Bin/glslangValidator.exe -V -o composition.vert.spv compo
 
 C:/VulkanSDK/1.2.162.1/Bin/glslangValidator.exe -V -o composition.frag.spv composition.frag
 
+C:/VulkanSDK/1.2.162.1/Bin/glslangValidator.exe -V -o composition_debug.vert.spv composition_debug.vert
+
+C:/VulkanSDK/1.2.162.1/Bin/glslangValidator.exe -V -o composition_debug.frag.spv composition_debug.frag
+
 C:/VulkanSDK/1.2.162.1/Bin/glslangValidator.exe -V -o forward.vert.spv forward.vert
 
 C:/VulkanSDK/1.2.162.1/Bin/glslangValidator.exe -V -o forward.frag.spv forward.frag

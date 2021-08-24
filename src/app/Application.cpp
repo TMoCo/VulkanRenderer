@@ -58,9 +58,9 @@ void Application::buildScene() {
     
     model.loadModel(MODEL_PATH);
 
-    lights[0] = { {5.0f, -5.0f, 0.0f, 0.0f}, {0.5f, 0.5f, 0.5f}, 40.0f }; // pos, colour, radius
+    lights[0] = { {20.0f, 20.0f, 0.0f, 0.0f}, {150.0f, 150.0f, 150.0f}, 40.0f }; // pos, colour, radius
 
-    spotLight = SpotLight({ 5.0f, -5.0f, 0.0f }, 0.1f, 40.0f);
+    spotLight = SpotLight({ 20.0f, 20.0f, 0.0f }, 0.1f, 40.0f);
     
     floor = Plane(20.0f, 20.0f);
 
@@ -244,8 +244,10 @@ void Application::createDescriptorSetLayout() {
         vkinit::descriptorSetLayoutBinding(4, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT),
         // binding 5: normal input attachment
         vkinit::descriptorSetLayoutBinding(5, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT),
-        // binding 5: albedo input attachment
-        vkinit::descriptorSetLayoutBinding(6, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT)
+        // binding 6: albedo input attachment
+        vkinit::descriptorSetLayoutBinding(6, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT),
+        // binding 6: albedo input attachment
+        vkinit::descriptorSetLayoutBinding(7, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT)
     };
 
     VkDescriptorSetLayoutCreateInfo layoutCreateInf{};
@@ -363,6 +365,11 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
     texDescriptorAlbedo.imageView = _renderer._gbuffer[ALBEDO]._view;
     texDescriptorAlbedo.sampler = _renderer._colorSampler;
 
+    VkDescriptorImageInfo texDescriptorMetallicRoughness{};
+    texDescriptorMetallicRoughness.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    texDescriptorMetallicRoughness.imageView = _renderer._gbuffer[METALLIC_ROUGHNESS]._view;
+    texDescriptorMetallicRoughness.sampler = _renderer._colorSampler;
+
     VkDescriptorImageInfo texDescriptorShadowMap{};
     texDescriptorShadowMap.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
     texDescriptorShadowMap.imageView = shadowMap.imageView;
@@ -375,18 +382,20 @@ void Application::createDescriptorSets(UI32 swapChainImages) {
         compositionUboInf.offset = sizeof(CompositionUBO) * i;
         compositionUboInf.range  = sizeof(CompositionUBO);
 
-        // offscreen descriptor writes
+        // composition descriptor writes
         writeDescriptorSets = {
             // binding 1: shadow map
             vkinit::writeDescriptorSet(compositionDescriptorSets[i], 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorShadowMap),
-            // binding 1: position texture target 
+            // binding 3: composition fragment shader uniform
             vkinit::writeDescriptorSet(compositionDescriptorSets[i], 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &compositionUboInf),
-            // binding 2: normal texture target
+            // binding 4: position input attachment 
             vkinit::writeDescriptorSet(compositionDescriptorSets[i], 4, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, &texDescriptorPosition),
-            // binding 3: albedo texture target
+            // binding 5: normal input attachment
             vkinit::writeDescriptorSet(compositionDescriptorSets[i], 5, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, &texDescriptorNormal),
-            // binding 4: fragment shader uniform
+            // binding 6: albedo input attachment
             vkinit::writeDescriptorSet(compositionDescriptorSets[i], 6, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, &texDescriptorAlbedo),
+            // binding 7: metallic roughness input attachment
+            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 7, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, &texDescriptorMetallicRoughness)
         };
 
         // update according to the configuration
@@ -492,7 +501,8 @@ void Application::recordCommandBuffer(VkCommandBuffer cmdBuffer, UI32 index) {
     VkDeviceSize offset = 0; // offset into vertex buffer
     vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer._vkBuffer, &offset);
     vkCmdBindIndexBuffer(cmdBuffer, indexBuffer._vkBuffer, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(cmdBuffer, model.getNumIndices(0) + 6, 1, 0, 0, 0);
+    // vkCmdDrawIndexed(cmdBuffer, model.getNumIndices(0) + 6, 1, 0, 0, 0);
+    vkCmdDrawIndexed(cmdBuffer, model.getNumIndices(0), 1, 0, 0, 0);
 
     // skybox pipeline
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _skyboxPipeline);
@@ -575,9 +585,14 @@ void Application::createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLa
     pipelineCreateInfo.pColorBlendState = &colorBlendingStateInfo;
     pipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
 
-    // composition pipeline
-    vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(COMP_VERT_SHADER));
-    fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(COMP_FRAG_SHADER));
+#ifndef NDEBUG
+    vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("composition_debug.vert.spv"));
+    fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("composition_debug.frag.spv"));
+#else
+    vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("composition.vert.spv"));
+    fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("composition.frag.spv"));
+#endif
+
     shaderStages[0] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
     shaderStages[1] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
 
@@ -598,11 +613,12 @@ void Application::createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLa
     pipelineCreateInfo.subpass = 0;
     // pipelineCreateInfo.renderPass = _renderer._offscreenRenderPass;
 
-    vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(OFF_VERT_SHADER));
-    fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(OFF_FRAG_SHADER));
+    vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("offscreen.vert.spv"));
+    fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("offscreen.frag.spv"));
     shaderStages[0] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
     shaderStages[1] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
 
+    // rasterizerStateInfo.cullMode = VK_CULL_MODE_FRONT_BIT;
     rasterizerStateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
 
     auto bindingDescription = Model::getBindingDescriptions(0);
@@ -613,7 +629,8 @@ void Application::createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLa
             static_cast<uint32_t>(attributeDescriptions.size()), attributeDescriptions.data());
     pipelineCreateInfo.pVertexInputState = &vertexInputStateInfo; // vertex input bindings / attributes from gltf model
 
-    std::array<VkPipelineColorBlendAttachmentState, 3> colorBlendAttachmentStates = {
+    std::array<VkPipelineColorBlendAttachmentState, 4> colorBlendAttachmentStates = {
+        vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE),
         vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE),
         vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE),
         vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE)
@@ -630,8 +647,8 @@ void Application::createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLa
     vkDestroyShaderModule(_renderer._context.device, fragShaderModule, nullptr);
 
     // skybox pipeline
-    vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(SKY_VERT_SHADER));
-    fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile(SKY_FRAG_SHADER));
+    vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("skybox.vert.spv"));
+    fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("skybox.frag.spv"));
     shaderStages[0] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
     shaderStages[1] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
 
@@ -785,7 +802,6 @@ void Application::setGUI() {
     ImGui_ImplVulkan_NewFrame(); // empty
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    const char* attachments[] = { "composition", "position", "normal", "albedo", "depth", "shadow map", "shadow NDC", "camera NDC", "shadow depth" };
 
     ImGui::Begin("Options", nullptr, ImGuiWindowFlags_NoMove);
     ImGui::Text("Application %.1f FPS", ImGui::GetIO().Framerate);
@@ -794,8 +810,12 @@ void Application::setGUI() {
     ImGui::SliderFloat3("translate", &translate[0], -2.0f, 2.0f);
     ImGui::SliderFloat3("rotate", &rotate[0], -180.0f, 180.0f);
     ImGui::SliderFloat("scale", &scale, 0.0f, 1.0f);
+#ifndef NDEBUG
     ImGui::BulletText("Visualize:");
-    ImGui::Combo("", &attachmentNum, attachments, SizeofArray(attachments));
+    const char* attachments[13] = { "composition", "position", "normal", "albedo", "depth", "shadow map", 
+        "shadow NDC", "camera NDC", "shadow depth", "roughness", "metallic", "occlusion", "uv" };
+    ImGui::Combo("", &attachmentNum, attachments, StaticArraySize(attachments));
+#endif // !NDEBUG
     ImGui::PopItemWidth();
 
     ImGui::End();

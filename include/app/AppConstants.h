@@ -29,33 +29,20 @@ const std::string ENGINE_NAME = "No Engine";
 const std::streamsize MAX_SIZE = 1048;
 
 // paths to the model
-const std::string MODEL_PATH = "C:\\Users\\Tommy\\Documents\\COMP4\\5822HighPerformanceGraphics\\A3\\Assets\\SuzanneGltf\\Suzanne.gltf";
+const std::string MODEL_PATH = "C:\\Users\\Tommy\\Documents\\Graphics\\Gltf\\Suzanne\\Suzanne.gltf";
 
 // path to the skybox
 const std::string SKYBOX_PATH = "C:\\Users\\Tommy\\Documents\\Graphics\\CubeMaps\\sky\\";
 
-// forward rendering shader paths
-const std::string FWD_VERT_SHADER = "C:\\Users\\Tommy\\Documents\\Graphics\\VulkanGraphics\\src\\shaders\\forward.vert.spv";
-const std::string FWD_FRAG_SHADER = "C:\\Users\\Tommy\\Documents\\Graphics\\VulkanGraphics\\src\\shaders\\forward.frag.spv";
+// path to shaders
+const std::string SHADER_DIR = "C:\\Users\\Tommy\\Documents\\Graphics\\VulkanGraphics\\src\\shaders\\";
 
-// deferred rendering shader paths (offscreen, composition, skybox)
-const std::string OFF_VERT_SHADER = "C:\\Users\\Tommy\\Documents\\Graphics\\VulkanGraphics\\src\\shaders\\offscreen.vert.spv";
-const std::string OFF_FRAG_SHADER = "C:\\Users\\Tommy\\Documents\\Graphics\\VulkanGraphics\\src\\shaders\\offscreen.frag.spv";
-
-const std::string COMP_VERT_SHADER = "C:\\Users\\Tommy\\Documents\\Graphics\\VulkanGraphics\\src\\shaders\\composition.vert.spv";
-const std::string COMP_FRAG_SHADER = "C:\\Users\\Tommy\\Documents\\Graphics\\VulkanGraphics\\src\\shaders\\composition.frag.spv";
-
-const std::string SKY_VERT_SHADER = "C:\\Users\\Tommy\\Documents\\Graphics\\VulkanGraphics\\src\\shaders\\skybox.vert.spv";
-const std::string SKY_FRAG_SHADER = "C:\\Users\\Tommy\\Documents\\Graphics\\VulkanGraphics\\src\\shaders\\skybox.frag.spv";
-
-const std::string SHADOWMAP_VERT_SHADER = "C:\\Users\\Tommy\\Documents\\Graphics\\VulkanGraphics\\src\\shaders\\shadowmap.vert.spv";
-const std::string SHADOWMAP_FRAG_SHADER = "C:\\Users\\Tommy\\Documents\\Graphics\\VulkanGraphics\\src\\shaders\\shadowmap.frag.spv";
 
 namespace Axes {
 	// world axes
-	const glm::vec3 WORLD_RIGHT = glm::vec3(-1.0f, 0.0f, 0.0f);
+	const glm::vec3 WORLD_RIGHT = glm::vec3(1.0f, 0.0f, 0.0f);
 	const glm::vec3 WORLD_UP = glm::vec3(0.0f, 1.0f, 0.0f);
-	const glm::vec3 WORLD_FRONT = glm::vec3(0.0f, 0.0f, -1.0f);
+	const glm::vec3 WORLD_FRONT = glm::vec3(0.0f, 0.0f, 1.0f);
 
 	const glm::vec3 X = glm::vec3(1.0f, 0.0f, 0.0f);
 	const glm::vec3 Y = glm::vec3(0.0f, 1.0f, 0.0f);

@@ -14,6 +14,7 @@ void Renderer::init(GLFWwindow* window) {
     createAttachment(_gbuffer[POSITION], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
     createAttachment(_gbuffer[NORMAL], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
     createAttachment(_gbuffer[ALBEDO], 0x94, _swapChain.extent(), VK_FORMAT_R8G8B8A8_SRGB);
+    createAttachment(_gbuffer[METALLIC_ROUGHNESS], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
     createAttachment(_gbuffer[DEPTH], 0xa4, _swapChain.extent(), utils::findDepthFormat(_context.physicalDevice));
 
     // build render pass
@@ -89,6 +90,7 @@ void Renderer::recreateSwapchain() {
     createAttachment(_gbuffer[POSITION], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
     createAttachment(_gbuffer[NORMAL], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
     createAttachment(_gbuffer[ALBEDO], 0x94, _swapChain.extent(), VK_FORMAT_R8G8B8A8_SRGB);
+    createAttachment(_gbuffer[METALLIC_ROUGHNESS], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
     createAttachment(_gbuffer[DEPTH], 0xa4, _swapChain.extent(), utils::findDepthFormat(_context.physicalDevice));
 
     createRenderPass();
@@ -138,20 +140,15 @@ void Renderer::createFramebuffers() {
     _framebuffers.resize(_swapChain.imageCount());
     _guiFramebuffers.resize(_swapChain.imageCount());
 
-    VkFramebufferCreateInfo framebufferCreateInfo; 
-
-    // TODO: once render passes have been merged, remove extra framebuffer
-    std::array<VkImageView, kGbuffer::NUM_GBUFFER_ATTACHMENTS> gbufferViews{};
-    for (UI32 i = 0; i < kGbuffer::NUM_GBUFFER_ATTACHMENTS; i++) {
-        gbufferViews[i] = _gbuffer[i]._view;
-    }
-
     VkImageView attachmentViews[kAttachments::NUM_ATTACHMENTS] {};
 
     attachmentViews[kAttachments::GBUFFER_POSITION] = _gbuffer[kGbuffer::POSITION]._view;
-    attachmentViews[kAttachments::GBUFFER_NORMAL]   = _gbuffer[kGbuffer::NORMAL]._view;
-    attachmentViews[kAttachments::GBUFFER_ALBEDO]   = _gbuffer[kGbuffer::ALBEDO]._view;
-    attachmentViews[kAttachments::GBUFFER_DEPTH]    = _gbuffer[kGbuffer::DEPTH]._view;
+    attachmentViews[kAttachments::GBUFFER_NORMAL] = _gbuffer[kGbuffer::NORMAL]._view;
+    attachmentViews[kAttachments::GBUFFER_ALBEDO] = _gbuffer[kGbuffer::ALBEDO]._view;
+    attachmentViews[kAttachments::GBUFFER_METALLIC_ROUGHNESS] = _gbuffer[kGbuffer::METALLIC_ROUGHNESS]._view;
+    attachmentViews[kAttachments::GBUFFER_DEPTH] = _gbuffer[kGbuffer::DEPTH]._view;
+
+    VkFramebufferCreateInfo framebufferCreateInfo; 
 
     for (UI32 i = 0; i < _swapChain.imageCount(); i++) {
         // gui framebuffer
@@ -293,6 +290,9 @@ void Renderer::createRenderPass() {
     attachmentDescription.format = _gbuffer[kGbuffer::ALBEDO]._image._format;
     attachmentDescriptions[kAttachments::GBUFFER_ALBEDO] = attachmentDescription;
 
+    attachmentDescription.format = _gbuffer[kGbuffer::METALLIC_ROUGHNESS]._image._format;
+    attachmentDescriptions[kAttachments::GBUFFER_METALLIC_ROUGHNESS] = attachmentDescription;
+
     attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     attachmentDescription.format = _gbuffer[kGbuffer::DEPTH]._image._format;
     attachmentDescriptions[kAttachments::GBUFFER_DEPTH] = attachmentDescription;
@@ -313,7 +313,8 @@ void Renderer::createRenderPass() {
     std::vector<VkAttachmentReference> offScreenColorReferences = {
         { kAttachments::GBUFFER_POSITION, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
         { kAttachments::GBUFFER_NORMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
-        { kAttachments::GBUFFER_ALBEDO, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } };
+        { kAttachments::GBUFFER_ALBEDO, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
+        { kAttachments::GBUFFER_METALLIC_ROUGHNESS, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL } };
 
     VkAttachmentReference offScreenDepthReference = 
         { kAttachments::GBUFFER_DEPTH, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
@@ -330,7 +331,8 @@ void Renderer::createRenderPass() {
     std::vector<VkAttachmentReference> offScreenInputReferences = {
         { kAttachments::GBUFFER_POSITION, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
         { kAttachments::GBUFFER_NORMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
-        { kAttachments::GBUFFER_ALBEDO, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
+        { kAttachments::GBUFFER_ALBEDO, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
+        { kAttachments::GBUFFER_METALLIC_ROUGHNESS, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
 
     VkAttachmentReference compositionColorReference = 
         { kAttachments::COLOR, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };

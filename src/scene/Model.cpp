@@ -225,7 +225,7 @@ VkFormat Model::getImageFormat(uint32_t imgIdx) {
 /* ********************************************** Debug Copy Paste **********************************************
 
 #ifndef NDEBUG
-    PRINT("DEBUG\t\s\n", __FUNCTION__)
+    print("DEBUG\t\s\n", __FUNCTION__)
     std::cout << v << '\n';
     std::cout << std::endl;
     for (auto& v : arr) {
@@ -263,7 +263,7 @@ std::array<VkVertexInputAttributeDescription, 4> Model::getAttributeDescriptions
 
     for (auto& attrib : primitive.attributes) {
         tinygltf::Accessor accessor = model.accessors[attrib.second];
-        PRINT("attrib name: %s\n", attrib.first.c_str());
+        print("attrib name: %s\n", attrib.first.c_str());
 
         int size     = accessor.type != TINYGLTF_TYPE_SCALAR ? accessor.type : 1;
         int location = -1;
@@ -286,7 +286,7 @@ std::array<VkVertexInputAttributeDescription, 4> Model::getAttributeDescriptions
         }
         else
             throw std::runtime_error("Invalid vertex attribute!");
-        PRINT("location %i\n", location);
+        print("location %i\n", location);
 
         // use attrib num in map as index in array
         attributeDescriptions[attrib.second - 1].binding  = primitiveNum;

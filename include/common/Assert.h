@@ -8,6 +8,8 @@
 
 #include <iostream>
 
+#include <common/Print.h>
+
 #ifndef NDEBUG
 	#define m_assert(exp, msg) \
 		__m_assert(#exp, exp, __FILE__, __LINE__, msg)
@@ -17,9 +19,7 @@
 
 inline void __m_assert(const char* exp_str, bool exp, const char* file, int line, const char* msg) {
 	if (!exp) {
-		std::cerr << "Assertion failed:\t" << msg << '\n'
-			<< "Expected:\t" << exp_str << '\n'
-			<< "Source:\t" << file << ", line " << line << '\n';
+		print("Assertion failed:\t%s\nExpected:\t\t%s\nSource:\t\t\t%s -> line %i\n", msg, exp_str, file, line);
 		abort();
 	}
 }

@@ -201,7 +201,7 @@ Image::ImageFormatSupportDetails Image::queryFormatSupport(VkPhysicalDevice devi
     // given a set of desired image parameters, determine if a format is supported or not
     Image::ImageFormatSupportDetails details = { format, {} };
     if (vkGetPhysicalDeviceImageFormatProperties(device, format, type, tiling, usage, flags, &details.properties) != VK_SUCCESS) {
-        PRINT("!!! format %i not supported !!!\n", format);
+        print("!!! format %i not supported !!!\n", format);
     }
     return details;
 }

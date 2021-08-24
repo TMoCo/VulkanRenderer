@@ -48,8 +48,8 @@ const bool enableVerboseValidation = true;
 const bool enableVerboseValidation = false;
 #endif
 
-#define SizeofArray(arr)          ((size_t)(sizeof(arr) / sizeof(*(arr))))
-
+// only works for statically defined arrays
+#define StaticArraySize(arr)          ((size_t)(sizeof(arr) / sizeof(*(arr))))
 
 const size_t N_DESCRIPTOR_LAYOUTS = 2;
 

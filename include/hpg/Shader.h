@@ -17,7 +17,7 @@ struct Shader {
 
     inline static std::vector<char> readFile(const std::string& filename) {
         // create an input file stream, place cursor at the end and read in binary
-        std::ifstream file(filename, std::ios::ate | std::ios::binary);
+        std::ifstream file(SHADER_DIR + filename, std::ios::ate | std::ios::binary);
 
         // check that the stream was succesfully opened
         if (!file.is_open()) {

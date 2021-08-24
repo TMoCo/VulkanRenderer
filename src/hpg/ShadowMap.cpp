@@ -198,10 +198,8 @@ void ShadowMap::createShadowMapPipeline(VkDescriptorSetLayout* descriptorSetLayo
 
 	VkShaderModule vertShaderModule; // , fragShaderModule;
 	std::array<VkPipelineShaderStageCreateInfo, 1> shaderStages;
-	vertShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(SHADOWMAP_VERT_SHADER));
-	//fragShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile(SHADOWMAP_FRAG_SHADER));
+	vertShaderModule = Shader::createShaderModule(vkSetup, Shader::readFile("shadowmap.vert.spv"));
 	shaderStages[0] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
-	//shaderStages[1] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
 
 	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = vkinit::graphicsPipelineCreateInfo(layout, shadowMapRenderPass, 0);
 	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;

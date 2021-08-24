@@ -38,6 +38,7 @@ public:
 	// an image representing the depth seen from the light's perspective, to be sampled
 	Image		image;
 	VkFormat    format = VK_FORMAT_D16_UNORM;
+	//VkFormat    format = VK_FORMAT_D32_SFLOAT;
 	VkImageView imageView;
 	UI32 extent = 1024;
 	F32 depthBiasConstant = 1.8f;
