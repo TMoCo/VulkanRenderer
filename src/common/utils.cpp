@@ -55,10 +55,10 @@ namespace utils {
         return reinterpret_cast<glm::vec4*>(pVec);
     }
 
-    UI32 findMemoryType(const VkPhysicalDevice* physicalDevice, UI32 typeFilter, VkMemoryPropertyFlags properties) {
+    UI32 findMemoryType(VkPhysicalDevice physicalDevice, UI32 typeFilter, VkMemoryPropertyFlags properties) {
         // find best type of memory
         VkPhysicalDeviceMemoryProperties memProperties;
-        vkGetPhysicalDeviceMemoryProperties(*physicalDevice, &memProperties);
+        vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
         // two arrays in the struct, memoryTypes and memoryHeaps. Heaps are distinct ressources like VRAM and swap space in RAM
         // types exist within these heaps
 

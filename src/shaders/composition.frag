@@ -1,34 +1,31 @@
 #version 450
 
+/*
 layout (binding = 1) uniform sampler2DShadow samplerShadowMap;
-layout (input_attachment_index = 0, set = 0, binding = 4) uniform subpassInput samplerPosition;
-layout (input_attachment_index = 1, set = 0, binding = 5) uniform subpassInput samplerNormal;
-layout (input_attachment_index = 2, set = 0, binding = 6) uniform subpassInput samplerAlbedo;
-layout (input_attachment_index = 3, set = 0, binding = 7) uniform subpassInput samplerMetallicRoughness;
-
+*/
 struct Light {
 	vec4 position;
 	vec3 color;
 	float radius;	
 };
 
-layout(binding = 3, std140) uniform UniformBufferObject {
+layout(binding = 0, std140) uniform UniformBufferObject {
 	vec4 viewPos;
 	mat4 depthMVP;
 	mat4 cameraMVP;
 	Light[1] lights;
 } ubo;
 
-// layout (location = 0) in vec2 inUV;
+layout (input_attachment_index = 0, set = 0, binding = 1) uniform subpassInput samplerPosition;
+layout (input_attachment_index = 1, set = 0, binding = 2) uniform subpassInput samplerNormal;
+layout (input_attachment_index = 2, set = 0, binding = 3) uniform subpassInput samplerAlbedo;
+layout (input_attachment_index = 3, set = 0, binding = 4) uniform subpassInput samplerAOMetallicRoughness;
+
 
 layout(location = 0) out vec4 outColor;
 
-const vec3 ambient = vec3(0.2f, 0.2f, 0.2f);
-
 #define NEAR 0.1f
 #define FAR 40.0f
-
-#define PI 3.1415927410125732421875f
 
 const vec2 poissonDisk[4] = vec2[](
   vec2( -0.94201624, -0.39906216 ),
@@ -37,12 +34,7 @@ const vec2 poissonDisk[4] = vec2[](
   vec2( 0.34495938, 0.29387760 )
 );
 
-// compute linear depth, taken from:
-// https://learnopengl.com/Advanced-OpenGL/Depth-testing
-// (formula has been factorised)
-float linZ (float z, float n, float f) {
-	return n / (f - f*z + n*z);
-}
+#define PI 3.1415927410125732421875f
 
 // given a scene coordinate transformed by a light's MVP matrix, perform perspective division to get the NDC coordinates
 // from the light's view point 
@@ -51,7 +43,7 @@ float computeShadow(vec4 shadowCoord) {
 	shadowNDC.xy = shadowNDC.xy * 0.5f + 0.5f; // mapping from [-1,1] to [0,1] for sampling the shadow map
 	float shadow = 0.0f;
 	for (int i = 0; i < 4; i++) {
-		shadow += 0.25f * texture(samplerShadowMap, vec3(shadowNDC.xy + poissonDisk[i]/600.0, shadowNDC.z));
+		//shadow += 0.25f * texture(samplerShadowMap, vec3(shadowNDC.xy + poissonDisk[i]/600.0, shadowNDC.z));
 	}
 	return shadow; // if fragment depth greater than depth to occluder, then fragment is in shadow
 }
@@ -67,13 +59,13 @@ float normalisedDistributionTRGGX(float NdotH, float roughness) {
 	float alpha2 = roughness * roughness; 
 	float denom = NdotH * NdotH * (alpha2 - 1.0f) + 1.0f;
 	denom = denom * denom * PI;
-	return alpha2 / denom;
+	return alpha2 / max(denom, 0.001f);
 }
 
 float geometrySchlickGGX(float NdotV, float roughness) {
-	float alpha = roughness + 1.0f;
-	float k = alpha * alpha / 8.0f; // for direct lighting
-	// float k = roughness * roughness / 2.0f; // for image based lighting
+	roughness = roughness + 1.0f;
+	float k = roughness * roughness / 8.0f; // for direct lighting
+	// float k = roughness / 2.0f; // for image based lighting
 
 	return NdotV / (NdotV * (1.0f - k) + k);
 }
@@ -88,23 +80,18 @@ void main()
 	// values from gbuffer attachments
 	vec4 fragPos = subpassLoad(samplerPosition); // no need to convert to world space thanks to image format
 	vec4 normal = subpassLoad(samplerNormal); // already normalised
-	vec4 albedo = subpassLoad(samplerAlbedo);
-	vec4 metallicRoughness = subpassLoad(samplerMetallicRoughness);
+	vec3 albedo = pow(subpassLoad(samplerAlbedo).rgb, vec3(2.2f));
+	vec4 aoMetallicRoughness = subpassLoad(samplerAOMetallicRoughness);
 	
-	float shadow = (1.0f - computeShadow(ubo.depthMVP * vec4(fragPos.xyz, 1.0f)));
+	//float shadow = (1.0f - computeShadow(ubo.depthMVP * vec4(fragPos.xyz, 1.0f)));
 
-	float ao = metallicRoughness.r;
-	float metallic = metallicRoughness.b;
-	float roughness = metallicRoughness.g;
+	float ao = aoMetallicRoughness.r;
+	float roughness = aoMetallicRoughness.g;
+	float metallic = aoMetallicRoughness.b;
 
 	// is fragment skybox? encoded in normal's w component
 	if (normal.w == 0.0f) {
 		outColor = vec4(albedo.rgb, 1.0f);
-		return;
-	}
-	// first check if in shadow
-	if (shadow > 0.5) {
-		outColor = vec4(vec3(0.0f), 1.0f);
 		return;
 	}
 
@@ -117,7 +104,7 @@ void main()
 
 	// for dieletcric surfaces, surface reflection is 4%
 	vec3 F0 = vec3(0.04f);
-	F0 = mix(F0, albedo.rgb, metallic);
+	F0 = mix(F0, albedo, metallic);
 
 	// direction to frag from viewer
 	vec3 viewToFrag = normalize(ubo.viewPos.xyz - fragPos.xyz);
@@ -146,12 +133,12 @@ void main()
 
 			// compute BRDF -----------------------------------------------------------------
 			// using the cook torrance specular BRDF 
-								
+
 			// fresnel term
-			vec3 F = fresnelSchlick(F0, max(dot(halfway, viewToFrag), 0.0f));
+			vec3 F = fresnelSchlick(F0, clamp(dot(halfway, viewToFrag), 0.0f, 1.0f));
 
 			// normalised distribution function term
-			float NDF = normalisedDistributionTRGGX(max(dot(normal.xyz, halfway), 0.0f), roughness);
+			float NDF = normalisedDistributionTRGGX(max(dot(halfway, normal.xyz), 0.0f), roughness * roughness);
 
 			float NdotV = max(dot(normal.xyz, viewToFrag), 0.0f);
 			float NdotL = max(dot(normal.xyz, toLight), 0.0f);
@@ -160,18 +147,16 @@ void main()
 			float G = geometrySmith(NdotV, NdotL, roughness); // multiply roughness here?
 
 			// divide by normalisation factor
-			vec3 specular = NDF * G * F / max(4 * NdotV * NdotL, 0.001f);
+			vec3 specular = F * NDF * G / max(4.0f * NdotV * NdotL, 0.001f);
 
 			// fresnel value directly corresponds to the specularity of the surface
 			vec3 Kd = (vec3(1.0f) - F) * (1.0f - metallic); // nullify diffuse component for metallic surfaces
 
 			// add contribution of the light
-			Lo += (Kd * albedo.rgb / PI + specular) * radiance * NdotL;
+			Lo += (Kd * albedo / PI + specular) * radiance * NdotL;
 		}
 	}
 
-	vec3 color = vec3(0.03) * albedo.rgb * ao + Lo; // multiply by some ambient term
-	outColor = vec4(pow (color / (color + vec3(1.0f)), vec3(0.45454545f)), 1.0f);
-
-	// (1.0f - computeShadow(ubo.depthMVP * vec4(fragPos.xyz, 1.0f)))
+	vec3 color = vec3(0.03) * albedo * ao + Lo; // multiply by some ambient term
+	outColor = vec4(pow (color / (color + vec3(1.0f)), vec3(1.0/2.2)), 1.0f);
 }

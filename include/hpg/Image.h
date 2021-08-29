@@ -10,16 +10,15 @@
 #ifndef VULKAN_IMAGE_H
 #define VULKAN_IMAGE_H
 
-#include <common/types.h>
-
 #include <hpg/Buffer.h>
+
+#include <common/types.h>
 
 #include <vulkan/vulkan_core.h>
 
 // POD struct for an image from file (.png, .jpeg, &c)
 struct ImageData {
-    UI32 width;
-    UI32 height;
+    VkExtent3D extent;
     VkFormat format;
     BufferData pixels;
 };
@@ -53,16 +52,8 @@ public:
         VkImageFormatProperties properties;
     };
 
-public:
-    //-Initialisation and cleanup-----------------------------------------//
-    static void createImage(const VulkanContext* vkSetup, const VkCommandPool& commandPool, const ImageCreateInfo& info);
-    void cleanupImage(const VulkanContext* vkSetup);
-
     //-Image view creation------------------------------------------------//
     static VkImageView createImageView(const VulkanContext* vkSetup, const VkImageViewCreateInfo& imageViewCreateInfo);
-
-    //-Image layout transition--------------------------------------------//
-    static void transitionImageLayout(const VulkanContext* vkSetup, const LayoutTransitionInfo& transitionInfo);
 
     //-Image Loading from file--------------------------------------------//
     static ImageData loadImageFromFile(const std::string& path);
@@ -73,11 +64,6 @@ public:
         VkImageTiling tiling, VkImageUsageFlags usage, VkImageCreateFlags flags);
     static VkBool32 formatIsFilterable(VkPhysicalDevice physicalDevice, VkFormat format, VkImageTiling tiling);
 
-public:
-    VkExtent2D     _extent        = { 0, 0 };
-    VkFormat       _format        = VK_FORMAT_UNDEFINED;
-    VkImage        _vkImage       = nullptr;
-    VkDeviceMemory _memory        = nullptr;
 };
 
 #endif // !VULKAN_IMAGE_H

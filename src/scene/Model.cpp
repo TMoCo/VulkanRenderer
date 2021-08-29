@@ -18,6 +18,8 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
+#define TINYGLTF_USE_CPP14
+#define TINYGLTF_NOEXCEPTION
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -57,24 +59,23 @@ void Model::loadObjModel(const std::string& path) {
             Vertex vertex{};
 
             // set vertex data
-            vertex.pos = {
+            vertex.positionU = {
                 attrib.vertices[3 * index.vertex_index + 0],
                 attrib.vertices[3 * index.vertex_index + 1],
-                attrib.vertices[3 * index.vertex_index + 2]
+                attrib.vertices[3 * index.vertex_index + 2],
+                attrib.texcoords[2 * index.texcoord_index + 0]
+
             };
 
-            vertex.nor = {
+            vertex.normalV = {
                 attrib.normals[3 * index.normal_index + 0],
                 attrib.normals[3 * index.normal_index + 1],
-                attrib.normals[3 * index.normal_index + 2]
-            };
-
-            vertex.tex = {
-                attrib.texcoords[2 * index.texcoord_index + 0],
+                attrib.normals[3 * index.normal_index + 2],
                 1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
             };
+
             // add to the centre of gravity
-            centre += vertex.pos;
+            centre += glm::vec3(vertex.positionU);
 
             vertices.push_back(vertex);
             indices.push_back(static_cast<uint32_t>(indices.size()));
@@ -239,67 +240,22 @@ uint32_t Model::getImageBitDepth(uint32_t imgIdx) {
 
 VkVertexInputBindingDescription Model::getBindingDescriptions(uint32_t primitiveNum) {
     VkVertexInputBindingDescription bindingDescription{};
-    bindingDescription.binding   = primitiveNum; // for now 1 primitive = 1 buffer
+    bindingDescription.binding   = primitiveNum;
     bindingDescription.stride    = sizeof(Vertex);
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     return bindingDescription;
 }
 
-std::array<VkVertexInputAttributeDescription, 4> Model::getAttributeDescriptions(uint32_t primitiveNum) {
-    // TODO: hard coded attribute description from the suzanne model
-    std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
-    attributeDescriptions[0] = { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos) };
-    attributeDescriptions[1] = { 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, nor) };
-    attributeDescriptions[2] = { 2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, tan) };
-    attributeDescriptions[3] = { 3, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, tex) };
-
+std::array<VkVertexInputAttributeDescription, 3> Model::getAttributeDescriptions(uint32_t primitiveNum) {
+    std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
+    attributeDescriptions[0] = { 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, positionU) };
+    attributeDescriptions[1] = { 1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, normalV) };
+    attributeDescriptions[2] = { 2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, tangent) };
     return attributeDescriptions;
-    /*
-    auto& primitive = model.meshes[0].primitives[primitiveNum];
-
-    m_assert(primitive.attributes.size() == 4, "Model must have four attributes...");
-    std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
-
-    for (auto& attrib : primitive.attributes) {
-        tinygltf::Accessor accessor = model.accessors[attrib.second];
-        print("attrib name: %s\n", attrib.first.c_str());
-
-        int size     = accessor.type != TINYGLTF_TYPE_SCALAR ? accessor.type : 1;
-        int location = -1;
-        int offset   = 0;
-        if (attrib.first.compare("POSITION") == 0) {
-            location = 0;
-            offset   = offsetof(Vertex, pos);
-        }
-        else if (attrib.first.compare("NORMAL") == 0) {
-            location = 1;
-            offset   = offsetof(Vertex, nor);
-        }
-        else if (attrib.first.compare("TANGENT") == 0) {
-            location = 2;
-            offset   = offsetof(Vertex, tan);
-        }
-        else if (attrib.first.compare("TEXCOORD_0") == 0) {
-            location = 3;
-            offset   = offsetof(Vertex, tex);
-        }
-        else
-            throw std::runtime_error("Invalid vertex attribute!");
-        print("location %i\n", location);
-
-        // use attrib num in map as index in array
-        attributeDescriptions[attrib.second - 1].binding  = primitiveNum;
-        attributeDescriptions[attrib.second - 1].location = location;
-        attributeDescriptions[attrib.second - 1].format   = getFormatFromType(size); // returns the right format for appropriate type (size of vec)
-        attributeDescriptions[attrib.second - 1].offset   = offset;
-    }
-
-    return attributeDescriptions;
-    */
 }
 
-std::vector<Model::Vertex>* Model::getVertexBuffer(uint32_t primitiveNum) {
+std::vector<Vertex>* Model::getVertexBuffer(uint32_t primitiveNum) {
     // create array for vertices
     vertices.resize(getNumVertices(primitiveNum));
     m_assert(vertices.size() > 0, "No vertex data in primitive...");
@@ -307,7 +263,6 @@ std::vector<Model::Vertex>* Model::getVertexBuffer(uint32_t primitiveNum) {
     // map from attribute index to buffer offset (in order: pos, norm, tan, tex)
     std::map<int, size_t> attributeOffsets; 
     for (auto& attribute : model.meshes[0].primitives[primitiveNum].attributes) {
-        
         attributeOffsets.insert({ attribute.second - 1, model.bufferViews[attribute.second].byteOffset });
     }
 
@@ -315,12 +270,20 @@ std::vector<Model::Vertex>* Model::getVertexBuffer(uint32_t primitiveNum) {
 
     // loop over each vertex and extract its attributes from the model buffer
     for (size_t i = 0; i < vertices.size(); i++) {
-        vertices[i] = Vertex {
-            glm::make_vec3(((float*)(buffer.data.data() + attributeOffsets[0] + (i * sizeof(glm::vec3))))), // pos
-            glm::make_vec3(((float*)(buffer.data.data() + attributeOffsets[1] + (i * sizeof(glm::vec3))))), // norm
-            glm::make_vec4(((float*)(buffer.data.data() + attributeOffsets[2] + (i * sizeof(glm::vec3))))), // tan
-            glm::make_vec2(((float*)(buffer.data.data() + attributeOffsets[3] + (i * sizeof(glm::vec2)))))  // tex
-        };
+        vertices[i] = Vertex {};
+        memcpy(glm::value_ptr(vertices[i].positionU),
+                ((float*)(buffer.data.data() + attributeOffsets[0] + (i * sizeof(glm::vec3)))), 
+                sizeof(glm::vec3));
+        vertices[i].positionU.w = *((float*)(buffer.data.data() + attributeOffsets[3] + (i * sizeof(glm::vec2)) + 0 * sizeof(float)));
+        
+        memcpy(glm::value_ptr(vertices[i].normalV),
+            ((float*)(buffer.data.data() + attributeOffsets[1] + (i * sizeof(glm::vec3)))),
+            sizeof(glm::vec3));
+        vertices[i].normalV.w = *((float*)(buffer.data.data() + attributeOffsets[3] + i * sizeof(glm::vec2) + 1 * sizeof(float)));
+
+        memcpy(glm::value_ptr(vertices[i].tangent),
+            ((float*)(buffer.data.data() + attributeOffsets[2] + (i * sizeof(glm::vec4)))),
+            sizeof(glm::vec4));
     }
 
     return &vertices;
@@ -342,11 +305,15 @@ std::vector<uint32_t>* Model::getIndexBuffer(uint32_t primitiveNum) {
     return &indices;
 }
 
-const std::vector<ImageData>* Model::getMaterialTextureData(UI32 primitiveNum) {
+std::vector<ImageData>* Model::getMaterialTextureData(UI32 primitiveNum) {
     tinygltf::Material material = model.materials[model.meshes[0].primitives[primitiveNum].material];
 
     m_assert((material.values.size() > 0) && (material.values.size() < 3), "Invalid number of textures in material (only support two)... ");
     textures.resize(material.values.size());
+
+    if (material.normalTexture.index == -1) {
+        print("no normal texture");
+    }
 
     // TODO: refactor away from dynamic vector with a material class
     auto texIter = textures.begin();
@@ -355,7 +322,7 @@ const std::vector<ImageData>* Model::getMaterialTextureData(UI32 primitiveNum) {
         tinygltf::Image* im = &model.images[texIdx];
         // image info
         *texIter = { 
-            static_cast<UI32>(im->width), static_cast<UI32>(im->height), // extents
+            { static_cast<UI32>(im->width), static_cast<UI32>(im->height), 1 }, // extents
             getImageFormat(texIdx), // format
             { im->image.data(), im->image.size() } // pixel buffer
         };

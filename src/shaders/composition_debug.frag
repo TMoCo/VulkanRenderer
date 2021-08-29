@@ -1,25 +1,23 @@
 #version 450
 
-layout (binding = 1) uniform sampler2DShadow samplerShadowMap;
-layout (input_attachment_index = 0, set = 0, binding = 4) uniform subpassInput samplerPosition;
-layout (input_attachment_index = 1, set = 0, binding = 5) uniform subpassInput samplerNormal;
-layout (input_attachment_index = 2, set = 0, binding = 6) uniform subpassInput samplerAlbedo;
-layout (input_attachment_index = 3, set = 0, binding = 7) uniform subpassInput samplerMetallicRoughness;
-
 struct Light {
 	vec4 position;
 	vec3 color;
 	float radius;	
 };
 
-layout(binding = 3, std140) uniform UniformBufferObject {
+layout(binding = 0, std140) uniform UniformBufferObject {
 	vec4 viewPos;
 	mat4 depthMVP;
 	mat4 cameraMVP;
 	Light[1] lights;
 } ubo;
 
-layout (location = 0) in vec2 inUV;
+// layout (binding = 1) uniform sampler2DShadow samplerShadowMap;
+layout (input_attachment_index = 0, set = 0, binding = 1) uniform subpassInput samplerPosition;
+layout (input_attachment_index = 1, set = 0, binding = 2) uniform subpassInput samplerNormal;
+layout (input_attachment_index = 2, set = 0, binding = 3) uniform subpassInput samplerAlbedo;
+layout (input_attachment_index = 3, set = 0, binding = 4) uniform subpassInput samplerMetallicRoughness;
 
 layout(location = 0) out vec4 outColor;
 
@@ -51,7 +49,7 @@ float computeShadow(vec4 shadowCoord) {
 	shadowNDC.xy = shadowNDC.xy * 0.5f + 0.5f; // mapping from [-1,1] to [0,1] for sampling the shadow map
 	float shadow = 0.0f;
 	for (int i = 0; i < 4; i++) {
-		shadow += 0.25f * texture(samplerShadowMap, vec3(shadowNDC.xy + poissonDisk[i]/600.0, shadowNDC.z));
+		//shadow += 0.25f * texture(samplerShadowMap, vec3(shadowNDC.xy + poissonDisk[i]/600.0, shadowNDC.z));
 	}
 	return shadow; // if fragment depth greater than depth to occluder, then fragment is in shadow
 }
@@ -103,7 +101,7 @@ void main()
 	vec4 metallicRoughness = subpassLoad(samplerMetallicRoughness);
 	vec2 uv = vec2(albedo.w, metallicRoughness.w);
 	
-	float shadow = 1.0f - computeShadow(shadowCoord);
+	//float shadow = 1.0f - computeShadow(shadowCoord);
 
 	float ao = metallicRoughness.r;
 	float metallic = metallicRoughness.b;
@@ -119,10 +117,12 @@ void main()
 		// scene composition
 		case 0: {
 			// first check if in shadow
+			/*
 			if (shadow > 0.5) {
 				outColor = vec4(vec3(0.0f), 1.0f);			
 				break;
 			}
+			*/
 
 			// Rendering equation
 			
@@ -168,7 +168,7 @@ void main()
 					vec3 F = fresnelSchlick(F0, max(dot(halfway, viewToFrag), 0.0f));
 
 					// normalised distribution function term
-					float NDF = normalisedDistributionTRGGX(normal.xyz, halfway, roughness);
+					float NDF = normalisedDistributionTRGGX(normal.xyz, halfway, roughness * roughness);
 
 					// geometry term
 					float G = geometrySmith(normal.xyz, viewToFrag, toLight, roughness); // multiply roughness here?
@@ -233,7 +233,7 @@ void main()
 		// shadowmap value
 		case 5:
 			// outColor = vec4(linZ(texture(samplerShadowMap, inUV).r, NEAR, FAR));
-			outColor = vec4(vec3(shadow), 1.0f);
+			// outColor = vec4(vec3(shadow), 1.0f);
 			break;
 		// position projected in light space
 		case 6:

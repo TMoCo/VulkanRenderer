@@ -7,11 +7,9 @@
 
 #include <array>
 
-void ShadowMap::createShadowMap(VulkanContext* pVkSetup, VkDescriptorSetLayout* descriptorSetLayout, 
-	const VkCommandPool& cmdPool) {
-	vkSetup = pVkSetup;
+void ShadowMap::createShadowMap(const Renderer& renderer) {
 	// create the depth image to sample from
-	createAttachment(cmdPool);
+	createAttachment(renderer);
 
 	createShadowMapSampler();
 
@@ -19,30 +17,29 @@ void ShadowMap::createShadowMap(VulkanContext* pVkSetup, VkDescriptorSetLayout* 
 
 	createShadowMapFrameBuffer();
 
-	createShadowMapPipeline(descriptorSetLayout);
+	createShadowMapPipeline(renderer._descriptorSetLayouts[OFFSCREEN_SHADOWMAP_DESCRIPTOR_LAYOUT]);
 
 	// uniform buffer
-	Buffer::createUniformBuffer<ShadowMap::UBO>(vkSetup, 1, &shadowMapUniformBuffer,
+	shadowMapUniformBuffer = Buffer::createBuffer(*vkSetup, sizeof(ShadowMap::UBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 }
 
-void ShadowMap::cleanupShadowMap() {
-	shadowMapUniformBuffer.cleanupBufferData(vkSetup->device);
+void ShadowMap::cleanupShadowMap(VkDevice device) {
+	shadowMapUniformBuffer.cleanupBufferData(device);
 
-	vkDestroySampler(vkSetup->device, depthSampler, nullptr);
+	vkDestroySampler(device, depthSampler, nullptr);
+	vkDestroyFramebuffer(device, shadowMapFrameBuffer, nullptr);
 
-	vkDestroyFramebuffer(vkSetup->device, shadowMapFrameBuffer, nullptr);
+	vkDestroyPipeline(device, shadowMapPipeline, nullptr);
+	vkDestroyPipelineLayout(device, layout, nullptr);
 
-	vkDestroyPipeline(vkSetup->device, shadowMapPipeline, nullptr);
-	vkDestroyPipelineLayout(vkSetup->device, layout, nullptr);
+	vkDestroyRenderPass(device, shadowMapRenderPass, nullptr);
 
-	vkDestroyRenderPass(vkSetup->device, shadowMapRenderPass, nullptr);
-
-	vkDestroyImageView(vkSetup->device, imageView, nullptr);
-	image.cleanupImage(vkSetup);
+	vkDestroyImageView(device, imageView, nullptr);
 }
 
-void ShadowMap::createAttachment(const VkCommandPool& cmdPool) {
+void ShadowMap::createAttachment(const Renderer& renderer) {
+	/*
 	// create the image 
 	Image::ImageCreateInfo info{};
 	info.extent = { extent, extent };
@@ -51,13 +48,14 @@ void ShadowMap::createAttachment(const VkCommandPool& cmdPool) {
 	info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	info.pImage = &image;
 
-	Image::createImage(vkSetup, cmdPool, info);
+	Image::createImage(renderer, info);
 
 	// create the image view
 	VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(image._vkImage,
 		VK_IMAGE_VIEW_TYPE_2D, format, {}, { VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1 });
 
 	imageView = Image::createImageView(vkSetup, imageViewCreateInfo);
+	*/
 }
 
 void ShadowMap::createShadowMapRenderPass() {
@@ -152,8 +150,8 @@ void ShadowMap::createShadowMapSampler() {
 	}
 }
 
-void ShadowMap::createShadowMapPipeline(VkDescriptorSetLayout* descriptorSetLayout) {
-	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
+void ShadowMap::createShadowMapPipeline(VkDescriptorSetLayout descriptorSetLayout) {
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipelineLayoutCreateInfo(1, &descriptorSetLayout);
 
 	if (vkCreatePipelineLayout(vkSetup->device, &pipelineLayoutCreateInfo, nullptr, &layout) != VK_SUCCESS) {
 		throw std::runtime_error("Could not create shadow map pipeline layout!");
@@ -184,11 +182,10 @@ void ShadowMap::createShadowMapPipeline(VkDescriptorSetLayout* descriptorSetLayo
 		vkinit::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
 
 	auto bindingDescription = Model::getBindingDescriptions(0);
-	auto attributeDescriptions = Model::getAttributeDescriptions(0);
+	VkVertexInputAttributeDescription attributeDescription = { 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, positionU) };
 
 	VkPipelineVertexInputStateCreateInfo   vertexInputStateCreateInfo =
-		vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription,
-			static_cast<uint32_t>(attributeDescriptions.size()), attributeDescriptions.data());
+		vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription, 1, &attributeDescription);
 
 	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
 

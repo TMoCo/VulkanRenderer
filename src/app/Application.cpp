@@ -13,6 +13,7 @@
 #include <common/vkinit.h>
 #include <common/Print.h>
 #include <common/Assert.h>
+#include <common/commands.h>
 
 #include <hpg/Shader.h>
 
@@ -35,90 +36,48 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
-void Application::run() {
-    init();
+void Application::run(const char* arg) {
+    init(arg);
     mainLoop();
     cleanup();
 }
 
-void Application::init() {
+void Application::init(const char* arg) {
     initWindow();
 
     _renderer.init(_window);
 
-    buildScene();
+    buildScene(arg);
 
     initVulkan();
 
     initImGui();
 }
 
-void Application::buildScene() {
-    camera = Camera({ 0.0f, 0.0f, 0.0f }, 2.0f, 10.0f);
+void Application::buildScene(const char* arg) {
+    camera = Camera({ 0.0f, 0.0f, 0.0f }, 2.0f, 1.5f);
     
-    model.loadModel(MODEL_PATH);
+    _gltfModel.load(arg);
+    _gltfModel.uploadToGpu(_renderer);
 
-    lights[0] = { {20.0f, 20.0f, 0.0f, 0.0f}, {150.0f, 150.0f, 150.0f}, 40.0f }; // pos, colour, radius
+    lights[0] = { {0.0f, 10.0f, 5.0f, 0.0f}, { 200.0f, 200.0f, 200.0f , 40.0f } }; // pos, colour + radius
 
     spotLight = SpotLight({ 20.0f, 20.0f, 0.0f }, 0.1f, 40.0f);
     
     floor = Plane(20.0f, 20.0f);
 
-    skybox.createSkybox(&_renderer._context, _renderer._commandPools[kCmdPools::RENDER]);
+    _skybox.load(SKYBOX_PATH);
+    _skybox.uploadToGpu(_renderer);
 
-    // textures
-    const std::vector<ImageData>* textureImages = model.getMaterialTextureData(0);
-    textures.resize(textureImages->size());
-
-    for (size_t i = 0; i < textureImages->size(); i++) {
-        textures[i].createTexture(&_renderer._context, _renderer._commandPools[kCmdPools::RENDER], textureImages->data()[i]);
-    }
-
-    // vertex buffer 
-    std::vector<Model::Vertex>* modelVertexBuffer = model.getVertexBuffer(0);
-    // generate the vertices for a 2D plane
-    //std::vector<Model::Vertex> planeVertexBuffer = floor.getVertices();
-
-    for (auto& v : floor.getVertices()) {
-        modelVertexBuffer->push_back(v);
-    }
-
-    Buffer::createDeviceLocalBuffer(& _renderer._context, _renderer._commandPools[kCmdPools::RENDER],
-        BufferData{ (UC*)modelVertexBuffer->data(), modelVertexBuffer->size() * sizeof(Model::Vertex) }, // vertex data as buffer
-        &vertexBuffer, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-
-    // index buffer
-    std::vector<UI32>* iBuffer = model.getIndexBuffer(0);
-    // generate indices for a quad
-    UI32 offset = static_cast<UI32>(iBuffer->size());
-    for (auto& i : floor.getIndices()) {
-        iBuffer->push_back(i + offset);
-    }
-
-    Buffer::createDeviceLocalBuffer(&_renderer._context, _renderer._commandPools[kCmdPools::RENDER],
-        BufferData{ (UC*)iBuffer->data(), iBuffer->size() * sizeof(UI32) }, // index data as buffer
-        &indexBuffer, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 }
 
 void Application::initVulkan() {
     // swap chain independent
-    createDescriptorSetLayout();
-    createDeferredPipelines(&descriptorSetLayout);
-
-    shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
-
-    Buffer::createUniformBuffer<OffScreenUbo>(&_renderer._context, 1,
-        &_offScreenUniform, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-    Buffer::createUniformBuffer<CompositionUBO>(&_renderer._context, _renderer._swapChain.imageCount(),
-        &_compositionUniforms, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-    createDescriptorPool();
-    createDescriptorSets(_renderer._swapChain.imageCount());
+    //shadowMap.createShadowMap(_renderer);
 
     // record commands
     for (UI32 i = 0; i < _renderer._swapChain.imageCount(); i++) {
-        buildShadowMapCommandBuffer(_renderer._renderCommandBuffers[i]);
+        // buildShadowMapCommandBuffer(_renderer._renderCommandBuffers[i]);
         recordCommandBuffer(_renderer._renderCommandBuffers[i], i);
     }
 }
@@ -135,17 +94,15 @@ void Application::recreateVulkanData() {
     vkDeviceWaitIdle(_renderer._context.device); // wait if in use by device
 
 
-    shadowMap.cleanupShadowMap();
+    //shadowMap.cleanupShadowMap();
 
     _renderer.recreateSwapchain();
 
     // create new swap chain etc...
-    shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[kCmdPools::RENDER]);
-
-    createDescriptorSets(_renderer._swapChain.imageCount());
+    //shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[RENDER_CMD_POOL]);
 
     for (UI32 i = 0; i < _renderer._swapChain.imageCount(); i++) {
-        buildShadowMapCommandBuffer(_renderer._renderCommandBuffers[i]);
+        // buildShadowMapCommandBuffer(_renderer._renderCommandBuffers[i]);
         recordCommandBuffer(_renderer._renderCommandBuffers[i], i);
     }
 
@@ -170,7 +127,7 @@ void Application::initImGui() {
     init_info.QueueFamily    = utils::QueueFamilyIndices::findQueueFamilies(_renderer._context.physicalDevice, _renderer._context.surface).graphicsFamily.value();
     init_info.Queue          = _renderer._context.graphicsQueue;
     init_info.PipelineCache  = VK_NULL_HANDLE;
-    init_info.DescriptorPool = descriptorPool;
+    init_info.DescriptorPool = _renderer._descriptorPool;
     init_info.Allocator      = nullptr;
     init_info.MinImageCount  = _renderer._context._swapChainSupportDetails.capabilities.minImageCount + 1;
     init_info.ImageCount     = _renderer._swapChain.imageCount();
@@ -182,9 +139,10 @@ void Application::initImGui() {
 }
 
 void Application::uploadFonts() {
-    VkCommandBuffer commandbuffer = utils::beginSingleTimeCommands(&_renderer._context.device, _renderer._commandPools[kCmdPools::GUI]);
+    VkCommandBuffer commandbuffer = cmd::beginSingleTimeCommands(_renderer._context.device, _renderer._commandPools[GUI_CMD_POOL]);
     ImGui_ImplVulkan_CreateFontsTexture(commandbuffer);
-    utils::endSingleTimeCommands(&_renderer._context.device, &_renderer._context.graphicsQueue, &commandbuffer, &_renderer._commandPools[kCmdPools::GUI]);
+    cmd::endSingleTimeCommands(_renderer._context.device, _renderer._context.graphicsQueue, commandbuffer, 
+        _renderer._commandPools[GUI_CMD_POOL]);
 }
 
 void Application::initWindow() {
@@ -200,208 +158,6 @@ void Application::initWindow() {
 }
 
 // Descriptors
-
-void Application::createDescriptorPool() {
-    uint32_t swapChainImageCount = _renderer._swapChain.imageCount();
-    VkDescriptorPoolSize poolSizes[] = {
-        { VK_DESCRIPTOR_TYPE_SAMPLER,                IMGUI_POOL_NUM },
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, IMGUI_POOL_NUM },
-        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,          IMGUI_POOL_NUM },
-        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          IMGUI_POOL_NUM },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER,   IMGUI_POOL_NUM },
-        { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,   IMGUI_POOL_NUM },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         IMGUI_POOL_NUM },
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         IMGUI_POOL_NUM },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, IMGUI_POOL_NUM },
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, IMGUI_POOL_NUM },
-        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,       IMGUI_POOL_NUM }
-    };
-
-    VkDescriptorPoolCreateInfo poolInfo{};
-    poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    poolInfo.maxSets       = IMGUI_POOL_NUM * _renderer._swapChain.imageCount();
-    poolInfo.poolSizeCount = static_cast<uint32_t>(sizeof(poolSizes) / sizeof(VkDescriptorPoolSize));
-    poolInfo.pPoolSizes    = poolSizes; // the descriptors
-
-    if (vkCreateDescriptorPool(_renderer._context.device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create descriptor pool!");
-    }
-}
-
-void Application::createDescriptorSetLayout() {
-
-    std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
-        // binding 0: vertex shader uniform buffer 
-        vkinit::descriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
-        // binding 1: model albedo texture / shadow map sampler
-        vkinit::descriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-        // binding 2: model metallic roughness 
-        vkinit::descriptorSetLayoutBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-        // binding 3: composition fragment shader uniform buffer 
-        vkinit::descriptorSetLayoutBinding(3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
-        // binding 4: position input attachment
-        vkinit::descriptorSetLayoutBinding(4, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT),
-        // binding 5: normal input attachment
-        vkinit::descriptorSetLayoutBinding(5, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT),
-        // binding 6: albedo input attachment
-        vkinit::descriptorSetLayoutBinding(6, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT),
-        // binding 6: albedo input attachment
-        vkinit::descriptorSetLayoutBinding(7, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT)
-    };
-
-    VkDescriptorSetLayoutCreateInfo layoutCreateInf{};
-    layoutCreateInf.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutCreateInf.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
-    layoutCreateInf.pBindings = setLayoutBindings.data();
-
-    if (vkCreateDescriptorSetLayout(_renderer._context.device, &layoutCreateInf, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create descriptor set layout!");
-    }
-}
-
-void Application::createDescriptorSets(UI32 swapChainImages) {
-    std::vector<VkDescriptorSetLayout> layouts(swapChainImages, descriptorSetLayout);
-
-    VkDescriptorSetAllocateInfo allocInfo = vkinit::descriptorSetAllocInfo(descriptorPool, 1, layouts.data());
-
-    // offscreen descriptor set
-    if (vkAllocateDescriptorSets(_renderer._context.device, &allocInfo, &offScreenDescriptorSet) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate descriptor sets!");
-    }
-
-    std::vector<VkWriteDescriptorSet> writeDescriptorSets;
-
-    // offscreen uniform
-    VkDescriptorBufferInfo offScreenUboInf{};
-    offScreenUboInf.buffer = _offScreenUniform._vkBuffer;
-    offScreenUboInf.offset = 0;
-    offScreenUboInf.range  = sizeof(OffScreenUbo);
-    
-    // offscreen textures in scene
-    std::vector<VkDescriptorImageInfo> offScreenTexDescriptors(textures.size());
-    for (size_t i = 0; i < textures.size(); i++) {
-        offScreenTexDescriptors[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        offScreenTexDescriptors[i].imageView   = textures[i].textureImageView;
-        offScreenTexDescriptors[i].sampler     = textures[i].textureSampler;
-    }
-
-    writeDescriptorSets = {
-        // binding 0: vertex shader uniform buffer 
-        vkinit::writeDescriptorSet(offScreenDescriptorSet, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &offScreenUboInf),
-        // binding 1: model albedo texture 
-        vkinit::writeDescriptorSet(offScreenDescriptorSet, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &offScreenTexDescriptors[0]),
-        // binding 2: model metallic roughness texture
-        vkinit::writeDescriptorSet(offScreenDescriptorSet, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &offScreenTexDescriptors[1])
-    };
-
-    vkUpdateDescriptorSets(_renderer._context.device, static_cast<UI32>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
-
-    // skybox descriptor set
-    if (vkAllocateDescriptorSets(_renderer._context.device, &allocInfo, &skyboxDescriptorSet) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate descriptor sets!");
-    }
-
-    // skybox uniform
-    VkDescriptorBufferInfo skyboxUboInf{};
-    skyboxUboInf.buffer = skybox.uniformBuffer._vkBuffer;
-    skyboxUboInf.offset = 0;
-    skyboxUboInf.range = sizeof(Skybox::UBO);
-
-    // skybox texture
-    VkDescriptorImageInfo skyboxTexDescriptor{};
-    skyboxTexDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    skyboxTexDescriptor.imageView = skybox.skyboxImageView;
-    skyboxTexDescriptor.sampler = skybox.skyboxSampler;
-
-    writeDescriptorSets = {
-        // binding 0: vertex shader uniform buffer 
-        vkinit::writeDescriptorSet(skyboxDescriptorSet, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &skyboxUboInf),
-        // binding 1: skybox texture 
-        vkinit::writeDescriptorSet(skyboxDescriptorSet, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &skyboxTexDescriptor)
-    };
-
-    vkUpdateDescriptorSets(_renderer._context.device, static_cast<UI32>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
-
-    // shadowMap descriptor set
-    if (vkAllocateDescriptorSets(_renderer._context.device, &allocInfo, &shadowMapDescriptorSet) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate descriptor sets!");
-    }
-
-    // shadowMap uniform
-    VkDescriptorBufferInfo shadowMapUboInf{};
-    shadowMapUboInf.buffer = shadowMap.shadowMapUniformBuffer._vkBuffer;
-    shadowMapUboInf.offset = 0;
-    shadowMapUboInf.range = sizeof(ShadowMap::UBO);
-
-    writeDescriptorSets = {
-        // binding 0: vertex shader uniform buffer 
-        vkinit::writeDescriptorSet(shadowMapDescriptorSet, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &shadowMapUboInf),
-    };
-
-    vkUpdateDescriptorSets(_renderer._context.device, static_cast<UI32>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
-
-    // composition descriptor sets
-    allocInfo.descriptorSetCount = static_cast<UI32>(layouts.size());
-    compositionDescriptorSets.resize(layouts.size());
-
-    if (vkAllocateDescriptorSets(_renderer._context.device, &allocInfo, compositionDescriptorSets.data()) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate descriptor sets!");
-    }
-
-    // image descriptors for gBuffer color attachments and shadow map
-    VkDescriptorImageInfo texDescriptorPosition{};
-    texDescriptorPosition.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    texDescriptorPosition.imageView = _renderer._gbuffer[POSITION]._view;
-    texDescriptorPosition.sampler = _renderer._colorSampler;
-
-    VkDescriptorImageInfo texDescriptorNormal{};
-    texDescriptorNormal.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    texDescriptorNormal.imageView = _renderer._gbuffer[NORMAL]._view;
-    texDescriptorNormal.sampler = _renderer._colorSampler;
-
-    VkDescriptorImageInfo texDescriptorAlbedo{};
-    texDescriptorAlbedo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    texDescriptorAlbedo.imageView = _renderer._gbuffer[ALBEDO]._view;
-    texDescriptorAlbedo.sampler = _renderer._colorSampler;
-
-    VkDescriptorImageInfo texDescriptorMetallicRoughness{};
-    texDescriptorMetallicRoughness.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    texDescriptorMetallicRoughness.imageView = _renderer._gbuffer[METALLIC_ROUGHNESS]._view;
-    texDescriptorMetallicRoughness.sampler = _renderer._colorSampler;
-
-    VkDescriptorImageInfo texDescriptorShadowMap{};
-    texDescriptorShadowMap.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-    texDescriptorShadowMap.imageView = shadowMap.imageView;
-    texDescriptorShadowMap.sampler = shadowMap.depthSampler;
-
-    for (size_t i = 0; i < compositionDescriptorSets.size(); i++) {
-        // forward rendering uniform buffer
-        VkDescriptorBufferInfo compositionUboInf{};
-        compositionUboInf.buffer = _compositionUniforms._vkBuffer;
-        compositionUboInf.offset = sizeof(CompositionUBO) * i;
-        compositionUboInf.range  = sizeof(CompositionUBO);
-
-        // composition descriptor writes
-        writeDescriptorSets = {
-            // binding 1: shadow map
-            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &texDescriptorShadowMap),
-            // binding 3: composition fragment shader uniform
-            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &compositionUboInf),
-            // binding 4: position input attachment 
-            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 4, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, &texDescriptorPosition),
-            // binding 5: normal input attachment
-            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 5, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, &texDescriptorNormal),
-            // binding 6: albedo input attachment
-            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 6, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, &texDescriptorAlbedo),
-            // binding 7: metallic roughness input attachment
-            vkinit::writeDescriptorSet(compositionDescriptorSets[i], 7, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, &texDescriptorMetallicRoughness)
-        };
-
-        // update according to the configuration
-        vkUpdateDescriptorSets(_renderer._context.device, static_cast<UI32>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
-    }
-}
 
 // Command buffers
 
@@ -460,24 +216,30 @@ void Application::buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer) {
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMap.layout, 0, 1,
         &shadowMapDescriptorSet, 0, nullptr);
 
-    VkDeviceSize offset = 0; // offset into vertex buffer
-    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer._vkBuffer, &offset);
-    vkCmdBindIndexBuffer(cmdBuffer, indexBuffer._vkBuffer, 0, VK_INDEX_TYPE_UINT32);
-    
-    vkCmdDrawIndexed(cmdBuffer, model.getNumIndices(0) + 6, 1, 0, 0, 0);
+    _gltfModel.draw(cmdBuffer);
 
     vkCmdEndRenderPass(cmdBuffer);
 }
 
 // USES THE NEW RENDER PASS
 void Application::recordCommandBuffer(VkCommandBuffer cmdBuffer, UI32 index) {
-    // Clear values for all attachments written in the fragment shader
-    VkClearValue clearValues[kAttachments::NUM_ATTACHMENTS] {};
-    clearValues[kAttachments::COLOR].color = { 0.0f, 0.0f, 0.0f, 0.0f };
-    clearValues[kAttachments::GBUFFER_POSITION].color = clearValues[kAttachments::COLOR].color;
-    clearValues[kAttachments::GBUFFER_NORMAL].color = clearValues[kAttachments::GBUFFER_POSITION].color;
-    clearValues[kAttachments::GBUFFER_ALBEDO].color = clearValues[kAttachments::GBUFFER_NORMAL].color;
-    clearValues[kAttachments::GBUFFER_DEPTH].depthStencil = { 1.0f, 0 };
+    VkCommandBufferBeginInfo commandBufferBeginInfo = vkinit::commandBufferBeginInfo();
+
+    // implicitly resets cmd buffer
+    if (vkBeginCommandBuffer(cmdBuffer, &commandBufferBeginInfo) != VK_SUCCESS) {
+        throw std::runtime_error("failed to begin recording command buffer!");
+    }
+    
+    VkClearColorValue clearColor = { 0.0f, 0.0f, 0.0f, 0.0f };
+    
+    // Clear values for all attachments (color and depth) written in the fragment shader
+    VkClearValue clearValues[ATTACHMENTS_MAX_ENUM] {};
+    clearValues[COLOR_ATTACHMENT].color = clearColor;
+    clearValues[GBUFFER_POSITION_ATTACHMENT].color = clearColor;
+    clearValues[GBUFFER_NORMAL_ATTACHMENT].color = clearColor;
+    clearValues[GBUFFER_ALBEDO_ATTACHMENT].color = clearColor;
+
+    clearValues[GBUFFER_DEPTH_ATTACHMENT].depthStencil = { 1.0f, 0 };
 
     VkViewport viewport{ 0.0f, 0.0f, (F32)_renderer._swapChain.extent().width, 
         (F32)_renderer._swapChain.extent().height, 0.0f, 1.0f };
@@ -486,7 +248,7 @@ void Application::recordCommandBuffer(VkCommandBuffer cmdBuffer, UI32 index) {
 
 
     VkRenderPassBeginInfo renderPassBeginInfo = vkinit::renderPassBeginInfo(_renderer._renderPass,
-        _renderer._framebuffers[index], _renderer._swapChain.extent(), kAttachments::NUM_ATTACHMENTS, clearValues);
+        _renderer._framebuffers[index], _renderer._swapChain.extent(), ATTACHMENTS_MAX_ENUM, clearValues);
 
     // 1: offscreen scene render into gbuffer
     vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -494,176 +256,34 @@ void Application::recordCommandBuffer(VkCommandBuffer cmdBuffer, UI32 index) {
     vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
     vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
+    // TODO: MOVE PIPELINE BINDING INTO model.draw
     // scene pipeline
+    /*
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _offScreenPipeline);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _deferredPipelineLayout, 0, 1,
         &offScreenDescriptorSet, 0, nullptr);
-    VkDeviceSize offset = 0; // offset into vertex buffer
-    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer._vkBuffer, &offset);
-    vkCmdBindIndexBuffer(cmdBuffer, indexBuffer._vkBuffer, 0, VK_INDEX_TYPE_UINT32);
-    // vkCmdDrawIndexed(cmdBuffer, model.getNumIndices(0) + 6, 1, 0, 0, 0);
-    vkCmdDrawIndexed(cmdBuffer, model.getNumIndices(0), 1, 0, 0, 0);
+    */
+    
+    _gltfModel.draw(cmdBuffer);
 
-    // skybox pipeline
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _skyboxPipeline);
-    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _deferredPipelineLayout, 0, 1,
-        &skyboxDescriptorSet, 0, nullptr);
-    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &skybox.vertexBuffer._vkBuffer, &offset);
-    vkCmdDraw(cmdBuffer, 36, 1, 0, 0);
+    _skybox.draw(cmdBuffer);
 
     // 2: composition to screen
     vkCmdNextSubpass(cmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
 
     //vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _compositionPipeline);
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _renderer._compositionPipeline);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-        _deferredPipelineLayout, 0, 1, &compositionDescriptorSets[index], 0, nullptr);
+        _renderer._compositionPipelineLayout, 0, 1, &_renderer._compositionDescriptorSets[index], 0, nullptr);
+
     // draw a single triangle
     vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
+
     vkCmdEndRenderPass(cmdBuffer);
 
     if (vkEndCommandBuffer(cmdBuffer) != VK_SUCCESS) {
         throw std::runtime_error("failed to record command buffer!");
     }
-}
-
-// pipelines
-
-void Application::createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLayout) {
-
-    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
-
-    if (vkCreatePipelineLayout(_renderer._context.device, &pipelineLayoutCreateInfo, nullptr, &_deferredPipelineLayout) != VK_SUCCESS) {
-        throw std::runtime_error("Could not create deferred pipeline layout!");
-    }
-
-    VkColorComponentFlags colBlendAttachFlag =
-        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    VkPipelineColorBlendAttachmentState colorBlendAttachment =
-        vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE);
-
-    VkShaderModule vertShaderModule, fragShaderModule;
-    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
-
-    VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateInfo =
-        vkinit::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
-
-    VkPipelineRasterizationStateCreateInfo rasterizerStateInfo =
-        vkinit::pipelineRasterStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_FRONT_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
-
-    VkPipelineColorBlendStateCreateInfo    colorBlendingStateInfo =
-        vkinit::pipelineColorBlendStateCreateInfo(1, &colorBlendAttachment);
-
-    VkPipelineDepthStencilStateCreateInfo  depthStencilStateInfo =
-        vkinit::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
-
-    VkPipelineViewportStateCreateInfo      viewportStateInfo =
-        vkinit::pipelineViewportStateCreateInfo(1, nullptr, 1, nullptr);
-
-    VkPipelineMultisampleStateCreateInfo   multisamplingStateInfo =
-        vkinit::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
-
-    VkPipelineLayoutCreateInfo             pipelineLayoutInfo =
-        vkinit::pipelineLayoutCreateInfo(1, descriptorSetLayout);
-
-    // dynamic view port for resizing
-    VkDynamicState dynamicStateEnables[2] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-    VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = vkinit::pipelineDynamicStateCreateInfo(dynamicStateEnables, 2);
-
-    // shared between the offscreen and composition pipelines
-    VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-        vkinit::graphicsPipelineCreateInfo(_deferredPipelineLayout, _renderer._renderPass, 1); // composition pipeline uses swapchain render pass
-
-    pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
-    pipelineCreateInfo.pStages = shaderStages.data();
-    pipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateInfo;
-    pipelineCreateInfo.pViewportState = &viewportStateInfo;
-    pipelineCreateInfo.pRasterizationState = &rasterizerStateInfo;
-    pipelineCreateInfo.pMultisampleState = &multisamplingStateInfo;
-    pipelineCreateInfo.pDepthStencilState = &depthStencilStateInfo;
-    pipelineCreateInfo.pColorBlendState = &colorBlendingStateInfo;
-    pipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
-
-#ifndef NDEBUG
-    vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("composition_debug.vert.spv"));
-    fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("composition_debug.frag.spv"));
-#else
-    vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("composition.vert.spv"));
-    fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("composition.frag.spv"));
-#endif
-
-    shaderStages[0] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
-    shaderStages[1] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
-
-    rasterizerStateInfo.cullMode = VK_CULL_MODE_FRONT_BIT;
-
-    VkPipelineVertexInputStateCreateInfo emptyInputStateInfo =
-        vkinit::pipelineVertexInputStateCreateInfo(0, nullptr, 0, nullptr); // no vertex data input
-    pipelineCreateInfo.pVertexInputState = &emptyInputStateInfo;
-
-    if (vkCreateGraphicsPipelines(_renderer._context.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_compositionPipeline) != VK_SUCCESS) {
-        throw std::runtime_error("Could not create deferred graphics pipeline!");
-    }
-
-    vkDestroyShaderModule(_renderer._context.device, vertShaderModule, nullptr);
-    vkDestroyShaderModule(_renderer._context.device, fragShaderModule, nullptr);
-
-    // offscreen pipeline
-    pipelineCreateInfo.subpass = 0;
-    // pipelineCreateInfo.renderPass = _renderer._offscreenRenderPass;
-
-    vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("offscreen.vert.spv"));
-    fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("offscreen.frag.spv"));
-    shaderStages[0] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
-    shaderStages[1] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
-
-    // rasterizerStateInfo.cullMode = VK_CULL_MODE_FRONT_BIT;
-    rasterizerStateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-
-    auto bindingDescription = Model::getBindingDescriptions(0);
-    auto attributeDescriptions = Model::getAttributeDescriptions(0);
-
-    VkPipelineVertexInputStateCreateInfo   vertexInputStateInfo =
-        vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription,
-            static_cast<uint32_t>(attributeDescriptions.size()), attributeDescriptions.data());
-    pipelineCreateInfo.pVertexInputState = &vertexInputStateInfo; // vertex input bindings / attributes from gltf model
-
-    std::array<VkPipelineColorBlendAttachmentState, 4> colorBlendAttachmentStates = {
-        vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE),
-        vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE),
-        vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE),
-        vkinit::pipelineColorBlendAttachmentState(colBlendAttachFlag, VK_FALSE)
-    };
-
-    colorBlendingStateInfo.attachmentCount = static_cast<uint32_t>(colorBlendAttachmentStates.size());
-    colorBlendingStateInfo.pAttachments = colorBlendAttachmentStates.data();
-
-    if (vkCreateGraphicsPipelines(_renderer._context.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_offScreenPipeline) != VK_SUCCESS) {
-        throw std::runtime_error("Could not create deferred graphics pipeline!");
-    }
-
-    vkDestroyShaderModule(_renderer._context.device, vertShaderModule, nullptr);
-    vkDestroyShaderModule(_renderer._context.device, fragShaderModule, nullptr);
-
-    // skybox pipeline
-    vertShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("skybox.vert.spv"));
-    fragShaderModule = Shader::createShaderModule(&_renderer._context, Shader::readFile("skybox.frag.spv"));
-    shaderStages[0] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
-    shaderStages[1] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
-
-    bindingDescription = { 0, sizeof(glm::vec3), VK_VERTEX_INPUT_RATE_VERTEX };
-    VkVertexInputAttributeDescription attributeDescription = { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 };
-
-    vertexInputStateInfo = vkinit::pipelineVertexInputStateCreateInfo(1, &bindingDescription, 1, &attributeDescription);
-    pipelineCreateInfo.pVertexInputState = &vertexInputStateInfo; // vertex input bindings / attributes from gltf model
-
-    if (vkCreateGraphicsPipelines(_renderer._context.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_skyboxPipeline) != VK_SUCCESS) {
-        throw std::runtime_error("Could not create deferred graphics pipeline!");
-    }
-
-    vkDestroyShaderModule(_renderer._context.device, vertShaderModule, nullptr);
-    vkDestroyShaderModule(_renderer._context.device, fragShaderModule, nullptr);
 }
 
 // Handling window resize events
@@ -809,7 +429,7 @@ void Application::setGUI() {
     ImGui::PushItemWidth(210);
     ImGui::SliderFloat3("translate", &translate[0], -2.0f, 2.0f);
     ImGui::SliderFloat3("rotate", &rotate[0], -180.0f, 180.0f);
-    ImGui::SliderFloat("scale", &scale, 0.0f, 1.0f);
+    ImGui::SliderFloat("scale", &scale, 1.0f, 50.0f);
 #ifndef NDEBUG
     ImGui::BulletText("Visualize:");
     const char* attachments[13] = { "composition", "position", "normal", "albedo", "depth", "shadow map", 
@@ -824,6 +444,7 @@ void Application::setGUI() {
 // Uniforms
 
 void Application::updateUniformBuffers(UI32 currentImage) {
+    // TODO: MAKE UNIFORM UPDATES MORE EFFICIENT (mapping/unmapping is costly operation every frame)
 
     // offscreen ubo
     glm::mat4 proj = glm::perspective(glm::radians(45.0f), _renderer.aspectRatio(), 0.1f, 40.0f);
@@ -836,43 +457,44 @@ void Application::updateUniformBuffers(UI32 currentImage) {
     rotateZ[1][1] *= -1.0f;
     model *= rotateZ * glm::toMat4(glm::quat(glm::radians(rotate)));
 
-    OffScreenUbo offscreenUbo{};
+    OffscreenUBO offscreenUbo{};
     offscreenUbo.model = model;
-    offscreenUbo.view = camera.getViewMatrix();
-    offscreenUbo.projection = proj;
-    offscreenUbo.normal = glm::transpose(glm::inverse(glm::mat3(model)));
+    offscreenUbo.projectionView = proj * camera.getViewMatrix();
 
     void* data;
-    vkMapMemory(_renderer._context.device, _offScreenUniform._memory, 0, sizeof(offscreenUbo), 0, &data);
+    vkMapMemory(_renderer._context.device, _gltfModel._uniformBuffer._memory, 0, sizeof(offscreenUbo), 0, &data);
     memcpy(data, &offscreenUbo, sizeof(offscreenUbo));
-    vkUnmapMemory(_renderer._context.device, _offScreenUniform._memory);
+    vkUnmapMemory(_renderer._context.device, _gltfModel._uniformBuffer._memory);
 
     // shadow map ubo
+    /*
     ShadowMap::UBO shadowMapUbo = { spotLight.getMVP(model) };
     shadowMap.updateShadowMapUniformBuffer(shadowMapUbo); 
+    */
 
     // skybox ubo
-    Skybox::UBO skyboxUbo{};
-    skyboxUbo.view = glm::mat4(glm::mat3(camera.getViewMatrix()));
-    skyboxUbo.projection = proj;
+    SkyboxUBO skyboxUbo{};
+    skyboxUbo.projectionView = proj * glm::mat4(glm::mat3(camera.getViewMatrix()));
 
-    skybox.updateSkyboxUniformBuffer(skyboxUbo);
+    vkMapMemory(_renderer._context.device, _skybox._uniformBuffer._memory, 0, sizeof(skyboxUbo), 0, &data);
+    memcpy(data, &skyboxUbo, sizeof(skyboxUbo));
+    vkUnmapMemory(_renderer._context.device, _skybox._uniformBuffer._memory);
 
     // composition ubo
     CompositionUBO compositionUbo = {};
     compositionUbo.guiData = { camera.position, attachmentNum };
     compositionUbo.depthMVP = spotLight.getMVP();
-    compositionUbo.cameraMVP = offscreenUbo.projection * offscreenUbo.view;
+    compositionUbo.cameraMVP = offscreenUbo.projectionView;
     compositionUbo.lights[0] = lights[0]; // pos, colour, radius 
     /*
     compositionUbo.lights[1] = lights[1];
     compositionUbo.lights[2] = lights[2];
     compositionUbo.lights[3] = lights[3];
     */
-    vkMapMemory(_renderer._context.device, _compositionUniforms._memory, sizeof(compositionUbo) * currentImage, 
+    vkMapMemory(_renderer._context.device, _renderer._compositionUniforms._memory, sizeof(compositionUbo) * currentImage, 
         sizeof(compositionUbo), 0, &data);
     memcpy(data, &compositionUbo, sizeof(compositionUbo));
-    vkUnmapMemory(_renderer._context.device, _compositionUniforms._memory);
+    vkUnmapMemory(_renderer._context.device, _renderer._compositionUniforms._memory);
 }
 
 int Application::processKeyInput() {
@@ -958,34 +580,16 @@ void Application::cleanup() {
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
-    for (auto& texture : textures) {
-        texture.cleanupTexture();
-    }
+    _skybox.cleanupSkybox(_renderer._context.device);
 
-    skybox.cleanupSkybox();
-
-    shadowMap.cleanupShadowMap();
+    _gltfModel.unloadFromGpu(_renderer);
 
     _offScreenUniform.cleanupBufferData(_renderer._context.device);
     _compositionUniforms.cleanupBufferData(_renderer._context.device);
 
-
     // cleanup the descriptor pools and descriptor set layouts
     vkDestroyDescriptorPool(_renderer._context.device, descriptorPool, nullptr);
     vkDestroyDescriptorSetLayout(_renderer._context.device, descriptorSetLayout, nullptr);
-
-    // destroy the index and vertex buffers
-    indexBuffer.cleanupBufferData(_renderer._context.device);
-    vertexBuffer.cleanupBufferData(_renderer._context.device);
-
-    // destroy pipelines
-    vkDestroyPipeline(_renderer._context.device, _fwdPipeline, nullptr);
-    vkDestroyPipelineLayout(_renderer._context.device, _fwdPipelineLayout, nullptr);
-
-    vkDestroyPipelineLayout(_renderer._context.device, _deferredPipelineLayout, nullptr);
-    vkDestroyPipeline(_renderer._context.device, _compositionPipeline, nullptr);
-    vkDestroyPipeline(_renderer._context.device, _offScreenPipeline, nullptr);
-    vkDestroyPipeline(_renderer._context.device, _skyboxPipeline, nullptr);
 
     _renderer.cleanup();
 

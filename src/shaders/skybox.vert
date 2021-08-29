@@ -7,8 +7,7 @@
 
 // uniform
 layout(binding = 0, std140) uniform UniformBufferObject {
-	mat4 projection;
-    mat4 view;
+	mat4 projectionView;
 } ubo;
 
 // inputs specified in the vertex buffer attributes
@@ -19,6 +18,6 @@ layout(location = 0) out vec3 fragTexCoord;
 
 void main() {
 	fragTexCoord = inPosition;
-	vec4 pos = ubo.projection * ubo.view * vec4(inPosition, 1.0f);
+	vec4 pos = ubo.projectionView * vec4(inPosition, 1.0f);
 	gl_Position = pos.xyww; // replace the z component with w to guarantee always at max distance when in NDCS
 }

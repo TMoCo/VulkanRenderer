@@ -45,8 +45,10 @@ public:
 public:
 
     //-Buffer creation and cleanup-------------------------------------------------------------------------------//
-    static void createBuffer(const VulkanContext* vkSetup, CreateInfo* bufferCreateInfo);
-    void cleanupBufferData(const VkDevice& device);
+    static Buffer createBuffer(const VulkanContext& context, UI64 size, VkBufferUsageFlags usage, 
+        VkMemoryPropertyFlags properties, VkBufferCreateFlags flags = 0);
+
+    void cleanupBufferData(VkDevice device);
 
     //-Buffer copying--------------------------------------------------------------------------------------------//
     static void copyBuffer(const VulkanContext* vkSetup, const VkCommandPool& commandPool, CopyInfo* bufferCopyInfo);
@@ -54,26 +56,13 @@ public:
         VkBuffer buffer, VkImage image, const std::vector<VkBufferImageCopy>& regions);
 
     //-Buffer creation on GPU------------------------------------------------------------------------------------//
-    static void createDeviceLocalBuffer(const VulkanContext* vkSetup, const VkCommandPool& commandPool, 
-        const BufferData& buffer, Buffer* vkBuffer, VkBufferUsageFlagBits usage);
-
-    //-Utility uniform buffer creation---------------------------------------------------------------------------//
-    template<typename T>
-    static void createUniformBuffer(const VulkanContext* vkSetup, VkDeviceSize imagesSize, Buffer* buffer, VkMemoryPropertyFlags properties);
+    static Buffer createDeviceLocalBuffer(const VulkanContext* vkSetup, const VkCommandPool& commandPool, 
+        const BufferData& buffer, VkBufferUsageFlagBits usage);
 
 public:
     VkBuffer       _vkBuffer = nullptr;
     VkDeviceMemory _memory = nullptr;
 };
 
-//
-// Template definitions
-//
-
-template <typename T>
-void Buffer::createUniformBuffer(const VulkanContext* vkSetup, VkDeviceSize imagesSize, Buffer* pBuffer, VkMemoryPropertyFlags properties) {
-    Buffer::CreateInfo createInfo { imagesSize * sizeof(T), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, properties, pBuffer };
-    Buffer::createBuffer(vkSetup, &createInfo);
-}
 
 #endif // !BUFFERS_H

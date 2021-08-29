@@ -7,17 +7,14 @@
 
 // uniform
 layout(binding = 0, std140) uniform UniformBufferObject {
-    mat4 modl;
-    mat4 view;
-	mat4 proj;
-	mat4 norm;
+    mat4 model;
+    mat4 viewProj;
 } ubo;
 
 // inputs specified in the vertex buffer attributes
-layout(location = 0) in vec3 inPosition;
-layout(location = 1) in vec3 inNormal;
+layout(location = 0) in vec4 inPositionU;
+layout(location = 1) in vec4 inNormalV;
 layout(location = 2) in vec4 inTangent;
-layout(location = 3) in vec2 inTexCoord;
 
 // outputs
 layout(location = 0) out vec3 fragPos;
@@ -27,16 +24,13 @@ layout(location = 3) out vec2 fragTexCoord;
 
 void main() {
 	// position
-	vec4 tmpPos = ubo.modl * vec4(inPosition, 1.0f);
+	vec4 tmpPos = ubo.model * vec4(inPositionU.xyz, 1.0f);
 	fragPos     = tmpPos.xyz;
-
-	vec4 pos = ubo.proj * ubo.view * tmpPos;
-	gl_Position = pos;
+	gl_Position = ubo.viewProj * tmpPos;
 	// normal
-	mat3 normal  = mat3(ubo.norm);
-    fragNormal   = normal * inNormal;
+    fragNormal   = normalize(mat3(ubo.model) * inNormalV.xyz);
 	// tangent
 	fragTangent  = inTangent;
 	// texture uv
-    fragTexCoord = inTexCoord;
+    fragTexCoord = vec2(inPositionU.w, inNormalV.w);
 }

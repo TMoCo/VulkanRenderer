@@ -7,6 +7,7 @@
 // textures
 layout (binding = 1) uniform sampler2D albedoSampler;
 layout (binding = 2) uniform sampler2D metallicRoughnessSampler;
+layout (binding = 3) uniform sampler2D normalSampler;
 
 // input from previous stage
 // outputs
@@ -35,9 +36,6 @@ void main()
 {
 	// output to the gbuffer's color attachments
 	outPosition = vec4(fragPos, linearize_Z(gl_FragCoord.z, near, far) / far);
-	vec3 normal = fragNormal;
-	normal.y *= -1;
-	outNormal   = vec4(normal, 1.0f);
 	outAlbedo   = vec4(texture(albedoSampler, fragTexCoord).rgb, fragTexCoord.x);
 	outMetallicRoughness = vec4(texture(metallicRoughnessSampler, fragTexCoord).rgb, fragTexCoord.y);
 
@@ -49,5 +47,13 @@ void main()
 	mat3 TBN = mat3(T, B, N);
 
 	// from normal map if provided
-	// vec3 outNormal = TBN * normalize(texture(samplerNormalMap, inUV).xyz * 2.0 - vec3(1.0));
+	vec3 normal = normalize(TBN * texture(normalSampler, fragTexCoord).rgb);
+	// normal.y *= -1;
+	/*
+	outNormal   = vec4(normal, 1.0f);
+
+	normal = fragNormal;
+	normal.y *= -1;
+	outNormal   = vec4(normal, 1.0f);
+	*/
 }

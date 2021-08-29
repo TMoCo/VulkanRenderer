@@ -11,13 +11,11 @@
 #ifndef VULKAN_SWAP_CHAIN_H
 #define VULKAN_SWAP_CHAIN_H
 
-#include <scene/Model.h>
-
 #include <hpg/VulkanContext.h> // for referencing the device
 
-#include <vector> // vector container
-
 #include <vulkan/vulkan_core.h>
+
+#include <vector> // vector container
 
 class SwapChain {
     friend class Renderer;

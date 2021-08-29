@@ -5,29 +5,25 @@
 #ifndef MATERIAL_H
 #define MATERIAL_H
 
-
-#include <unordered_map>
-
-#include <hpg/Texture.h>
+#include <hpg/Texture2D.h>
 #include <hpg/ShaderEffect.h>
+#include <hpg/Renderer.h>
 
-enum kTransparency {
-	OPAQUE,
-	MASK,
-	BLEND
-};
- 
-struct MaterialParameters {
-	glm::vec4 emissive;
-};
+#include <tiny_gltf.h>
+
+#include <array>
 
 class Material {
 public:
+	void createPipeline(Renderer& renderer, kDescriptorSetLayout type);
 
-	std::vector<VkDescriptorSet> _descriptorSets;
-	std::vector<Texture> _textures;
+	std::string _name;
 
-	MaterialParameters _parameters;
+	VkPipeline _pipeline;
+	VkPipelineLayout _pipelineLayout;
+	VkDescriptorSet _descriptorSet;
+
+	std::vector<Texture2D> _textures;
 };
 
 #endif // !MATERIAL_H

@@ -13,15 +13,17 @@
 
 #include <glm/glm.hpp>
 
-#include <scene/Model.h>
+#include <hpg/Renderer.h>
+#include <hpg/TextureCube.h>
+#include <hpg/Image.h>
+
+typedef struct {
+	glm::mat4 projectionView;
+} SkyboxUBO;
 
 class Skybox {
 public: 
 	//-Unfiorm buffer object---------------------------------------------//    
-	struct UBO {
-		glm::mat4 projection;
-		glm::mat4 view;
-	};
 
 	//-Vertices for a small cube ----------------------------------------//    
 	glm::vec3 cubeVerts[36] = {
@@ -75,39 +77,34 @@ public:
 	};
 
 public:
-	//-Initialisation and cleanup----------------------------------------//    
-	void createSkybox(VulkanContext* pVkSetup, const VkCommandPool& commandPool);
-	void cleanupSkybox();
+	Skybox() : _onCpu(false), _onGpu(false) {}
+  
+	bool load(const std::string& path);
+	bool uploadToGpu(Renderer& renderer);
+	void draw(VkCommandBuffer cmdBuffer);
 
-	//-Skybox uniform object update -------------------------------------//    
-	void updateSkyboxUniformBuffer(const UBO& ubo) {
-		void* data;
-		vkMapMemory(vkSetup->device, uniformBuffer._memory, 0, sizeof(ubo), 0, &data);
-		memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(vkSetup->device, uniformBuffer._memory);
-	}
-
-private:
-	//-Skybox sampler creation-------------------------------------------//    
-	void createSkyboxSampler();
-
-	//-Skybox image creation---------------------------------------------//    
-	void createSkyboxImage(const VkCommandPool& commandPool);
-
-	//-Skybox image view creation----------------------------------------//    
-	void createSkyboxImageView();
+	void cleanupSkybox(VkDevice device);
 
 public:
-	//-Members-----------------------------------------------------------//    
-	VulkanContext* vkSetup;
+	//-Members-----------------------------------------------------------//
 
-	Image    skyboxImage;
-	VkImageView    skyboxImageView;
+	// pixels loaded from a cube map
+	ImageData _imageData;
 
-	VkSampler skyboxSampler;
+	// descriptors
+	TextureCube _cubeMap;
 
-	Buffer vertexBuffer;
-	Buffer uniformBuffer;
+	Buffer _uniformBuffer;
+
+	VkDescriptorSet _descriptorSet;
+
+	VkPipelineLayout _pipelineLayout;
+	VkPipeline _pipeline;
+
+	Buffer _vertexBuffer;
+
+	bool _onCpu;
+	bool _onGpu;
 };
 
 #endif // !SKYBOX_H

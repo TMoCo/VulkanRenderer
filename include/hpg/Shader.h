@@ -7,6 +7,8 @@
 
 #include <hpg/VulkanContext.h> // for referencing the device
 
+#include <app/AppConstants.h>
+
 #include <vector>
 #include <string>
 #include <fstream>

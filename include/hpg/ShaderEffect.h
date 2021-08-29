@@ -13,8 +13,8 @@
 #include <array>
 
 enum kShaderStages {
-	SHADOW,
-	OFFSCREEN,
+	SHADOW_STAGE,
+	OFFSCREEN_STAGE,
 	NUM_STAGES
 };
 
@@ -22,7 +22,6 @@ enum kShaderStages {
 class ShaderEffect {
 	VkPipelineLayout _pipelineLayout;
 	std::array<VkDescriptorSetLayout, NUM_STAGES> _descriptorSetLayouts;
-
 };
 
 

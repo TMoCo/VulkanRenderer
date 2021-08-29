@@ -10,7 +10,6 @@
 #include <vulkan/vulkan_core.h> // vulkan core structs &c
 
 #include <common/types.h>
-
 namespace vkinit {
 
     //-----------------------------------------------------------------------------------------------------------//
@@ -85,10 +84,21 @@ namespace vkinit {
     //-DESCRIPTOR SET STRUCTS------------------------------------------------------------------------------------//
     //-----------------------------------------------------------------------------------------------------------//
 
+    VkDescriptorPoolCreateInfo descriptorPoolCreateInfo(
+        UI32 maxSets,
+        UI32 poolSizeCount,
+        VkDescriptorPoolSize* pPoolSizes,
+        VkDescriptorPoolCreateFlags flags = 0);
+
     VkDescriptorSetLayoutBinding descriptorSetLayoutBinding(
         UI32 binding,
         VkDescriptorType type,
         VkPipelineStageFlags flags = 0);
+
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo(
+        VkDescriptorSetLayoutBinding* bindings,
+        UI32 count,
+        VkDescriptorSetLayoutCreateFlags flags = 0);
 
     VkDescriptorSetAllocateInfo descriptorSetAllocInfo(
         VkDescriptorPool pool,
@@ -123,6 +133,15 @@ namespace vkinit {
         VkCommandBufferLevel level,
         UI32 commandBufferCount);
 
+    VkSubmitInfo submitInfo(
+        VkPipelineStageFlags* waitStages,
+        UI32 waitSemaphoreCount,
+        VkSemaphore* pWaitSemaphores,
+        UI32 signalSemaphoreCount,
+        VkSemaphore* pSignalSemaphores,
+        UI32 commandBufferCount,
+        VkCommandBuffer* pCommandBuffers);
+
     //-----------------------------------------------------------------------------------------------------------//
     //-FRAME BUFFER STRUCTS--------------------------------------------------------------------------------------//
     //-----------------------------------------------------------------------------------------------------------//
@@ -137,6 +156,16 @@ namespace vkinit {
     //-----------------------------------------------------------------------------------------------------------//
     //-IMAGE STRUCTS---------------------------------------------------------------------------------------------//
     //-----------------------------------------------------------------------------------------------------------//
+
+    VkImageCreateInfo imageCreateInfo(
+        VkFormat format,
+        VkExtent3D extent,
+        UI32 mipLevels,
+        UI32 arrayLayers,
+        VkImageTiling tiling,
+        VkImageUsageFlags usage,
+        VkFlags = 0
+    );
 
     VkImageViewCreateInfo imageViewCreateInfo(
         VkImage image, 
@@ -157,6 +186,15 @@ namespace vkinit {
         VkBufferUsageFlags usage,
         VkSharingMode mode = VK_SHARING_MODE_EXCLUSIVE,
         VkBufferCreateFlags flags = 0);
+
+    //-----------------------------------------------------------------------------------------------------------//
+    //-MEMORY STRUCTS--------------------------------------------------------------------------------------------//
+    //-----------------------------------------------------------------------------------------------------------//
+
+    VkMemoryAllocateInfo memoryAllocateInfo(
+        VkDeviceSize size,
+        UI32 memoryTypeIndex
+    );
 
     //-----------------------------------------------------------------------------------------------------------//
     //-RENDER PASS STRUCTS---------------------------------------------------------------------------------------//

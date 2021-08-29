@@ -29,14 +29,14 @@ const std::string ENGINE_NAME = "No Engine";
 const std::streamsize MAX_SIZE = 1048;
 
 // paths to the model
-const std::string MODEL_PATH = "C:\\Users\\Tommy\\Documents\\Graphics\\Gltf\\Suzanne\\Suzanne.gltf";
+const std::string DEFAULT_MODEL = "C:\\Users\\Tommy\\Documents\\Graphics\\Gltf\\Suzanne\\Suzanne.gltf";
+// const std::string MODEL_PATH = "C:\\Users\\Tommy\\Documents\\Graphics\\Gltf\\BoomBox\\BoomBox.gltf";
 
 // path to the skybox
 const std::string SKYBOX_PATH = "C:\\Users\\Tommy\\Documents\\Graphics\\CubeMaps\\sky\\";
 
 // path to shaders
 const std::string SHADER_DIR = "C:\\Users\\Tommy\\Documents\\Graphics\\VulkanGraphics\\src\\shaders\\";
-
 
 namespace Axes {
 	// world axes

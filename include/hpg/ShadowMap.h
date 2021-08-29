@@ -6,6 +6,7 @@
 #define SHADOW_MAP_H
 
 #include <hpg/Image.h>
+#include <hpg/Renderer.h>
 
 #include <common/types.h>
 
@@ -17,10 +18,10 @@ public:
 		glm::mat4 depthMVP;
 	};
 	//-Initialisation and cleanup--------------------------------------------------------------------------------//
-	void createShadowMap(VulkanContext* pVkSetup, VkDescriptorSetLayout* descriptorSetLayout, const VkCommandPool& cmdPool);
-	void cleanupShadowMap();
+	void createShadowMap(const Renderer& renderer);
+	void cleanupShadowMap(VkDevice device);
 
-	void createAttachment(const VkCommandPool& cmdPool);
+	void createAttachment(const Renderer& renderer);
 
 	void createShadowMapRenderPass();
 
@@ -28,7 +29,7 @@ public:
 
 	void createShadowMapSampler();
 
-	void createShadowMapPipeline(VkDescriptorSetLayout* descriptorSetLayout);
+	void createShadowMapPipeline(VkDescriptorSetLayout descriptorSetLayout);
 
 	void updateShadowMapUniformBuffer(const UBO& ubo);
 

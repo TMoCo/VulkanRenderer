@@ -166,6 +166,20 @@ namespace vkinit {
     //-DESCRIPTOR SET STRUCTS------------------------------------------------------------------------------------//
     //-----------------------------------------------------------------------------------------------------------//
 
+    VkDescriptorPoolCreateInfo descriptorPoolCreateInfo(
+        UI32 maxSets,
+        UI32 poolSizeCount,
+        VkDescriptorPoolSize* pPoolSizes,
+        VkDescriptorPoolCreateFlags flags) {
+        VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{};
+        descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        descriptorPoolCreateInfo.maxSets = maxSets;
+        descriptorPoolCreateInfo.poolSizeCount = poolSizeCount;
+        descriptorPoolCreateInfo.pPoolSizes = pPoolSizes;
+        descriptorPoolCreateInfo.flags = flags;
+        return descriptorPoolCreateInfo;
+    }
+
     VkDescriptorSetLayoutBinding descriptorSetLayoutBinding(
         UI32 binding,
         VkDescriptorType type,
@@ -176,6 +190,18 @@ namespace vkinit {
         descSetLayoutBinding.binding = binding;
         descSetLayoutBinding.stageFlags = flags;
         return descSetLayoutBinding;
+    }
+
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo(
+        VkDescriptorSetLayoutBinding* bindings,
+        UI32 count, 
+        VkDescriptorSetLayoutCreateFlags flags) {
+        VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
+        descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        descriptorSetLayoutCreateInfo.bindingCount = count;
+        descriptorSetLayoutCreateInfo.pBindings = bindings;
+        descriptorSetLayoutCreateInfo.flags = flags;
+        return descriptorSetLayoutCreateInfo;
     }
 
     VkDescriptorSetAllocateInfo descriptorSetAllocInfo(
@@ -254,6 +280,26 @@ namespace vkinit {
         return commandBufferAllocateInfo;
     }
 
+    VkSubmitInfo submitInfo(
+        VkPipelineStageFlags* waitStages,
+        UI32 waitSemaphoreCount,
+        VkSemaphore* pWaitSemaphores,
+        UI32 signalSemaphoreCount,
+        VkSemaphore* pSignalSemaphores,
+        UI32 commandBufferCount,
+        VkCommandBuffer* pCommandBuffers) {
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.pWaitDstStageMask = waitStages;
+        submitInfo.waitSemaphoreCount = waitSemaphoreCount;
+        submitInfo.pWaitSemaphores = pWaitSemaphores;
+        submitInfo.signalSemaphoreCount = signalSemaphoreCount;
+        submitInfo.pSignalSemaphores = pSignalSemaphores;
+        submitInfo.commandBufferCount = commandBufferCount;
+        submitInfo.pCommandBuffers = pCommandBuffers;
+        return submitInfo;
+    }
+
     //-----------------------------------------------------------------------------------------------------------//
     //-FRAME BUFFER STRUCTS--------------------------------------------------------------------------------------//
     //-----------------------------------------------------------------------------------------------------------//
@@ -279,8 +325,31 @@ namespace vkinit {
     //-IMAGE STRUCTS---------------------------------------------------------------------------------------------//
     //-----------------------------------------------------------------------------------------------------------//
 
-    VkImageViewCreateInfo imageViewCreateInfo(VkImage image, VkImageViewType type, VkFormat format,
-        VkComponentMapping componentMapping, VkImageSubresourceRange subresourceRange) {
+    VkImageCreateInfo imageCreateInfo(
+        VkFormat format,
+        VkExtent3D extent,
+        UI32 mipLevels,
+        UI32 arrayLayers,
+        VkImageTiling tiling,
+        VkImageUsageFlags usage,
+        VkFlags flags) {
+        VkImageCreateInfo imageCreateInfo{};
+        imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageCreateInfo.extent = extent;
+        imageCreateInfo.mipLevels = mipLevels;
+        imageCreateInfo.arrayLayers = arrayLayers;
+        imageCreateInfo.format = format;
+        imageCreateInfo.tiling = tiling;
+        imageCreateInfo.usage = usage;
+        imageCreateInfo.flags = flags;
+        return imageCreateInfo;
+    }
+
+    VkImageViewCreateInfo imageViewCreateInfo(VkImage image, 
+        VkImageViewType type, 
+        VkFormat format,
+        VkComponentMapping componentMapping, 
+        VkImageSubresourceRange subresourceRange) {
         VkImageViewCreateInfo viewCreateInfo{};
         viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewCreateInfo.image = image;
@@ -328,6 +397,20 @@ namespace vkinit {
         bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         bufferCreateInfo.flags = flags;
         return bufferCreateInfo;
+    }
+
+    //-----------------------------------------------------------------------------------------------------------//
+    //-MEMORY STRUCTS--------------------------------------------------------------------------------------------//
+    //-----------------------------------------------------------------------------------------------------------//
+
+    VkMemoryAllocateInfo memoryAllocateInfo(
+        VkDeviceSize size,
+        UI32 memoryTypeIndex ) {
+        VkMemoryAllocateInfo memoryAllocateInfo{};
+        memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        memoryAllocateInfo.allocationSize = size;
+        memoryAllocateInfo.memoryTypeIndex = memoryTypeIndex;
+        return memoryAllocateInfo;
     }
 
     //-----------------------------------------------------------------------------------------------------------//

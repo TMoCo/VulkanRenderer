@@ -16,6 +16,7 @@
 #include <scene/Model.h> // the model class
 #include <scene/Camera.h> // the camera struct
 #include <scene/SpotLight.h>
+#include <scene/GLTFModel.h>
 
 #include <math/primitives/Plane.h>
 #include <math/primitives/Cube.h>
@@ -44,39 +45,16 @@
 #include <string> // string for file name
 #include <chrono> // time 
 
-struct Light {
-    glm::vec4 pos;
-    glm::vec3 color;
-    float radius;
-};
-
-// TODO: organise uniform buffer objects better
-struct OffScreenUbo {
-    glm::mat4 model;
-    glm::mat4 view;
-    glm::mat4 projection;
-    glm::mat4 normal;
-};
-
-struct CompositionUBO {
-    glm::vec4 guiData;
-    glm::mat4 depthMVP;
-    glm::mat4 cameraMVP;
-    Light lights[1];
-};
-
-
 class Application {
-
 public:
-    void run();
+    void run(const char* arg);
 
 private:
     //-Initialise the app----------------------------------------------------------------------------------------//
-    void init();
+    void init(const char* arg);
 
     //-Build the scene by setting its data-----------------------------------------------------------------------//
-    void buildScene();
+    void buildScene(const char* arg);
 
     //-Initialise all our data for rendering---------------------------------------------------------------------//
     void initVulkan();
@@ -89,11 +67,6 @@ private:
     //-Initialise GLFW window------------------------------------------------------------------------------------//
     void initWindow();
 
-    //-Descriptor initialisation functions-----------------------------------------------------------------------//
-    void createDescriptorSetLayout();
-    void createDescriptorPool();
-    void createDescriptorSets(UI32 swapChainImages);
-
     //-Update uniform buffer-------------------------------------------------------------------------------------//
     void updateUniformBuffers(UI32 currentImage);
 
@@ -101,9 +74,6 @@ private:
     void buildGuiCommandBuffer(UI32 cmdBufferIndex);
     void buildShadowMapCommandBuffer(VkCommandBuffer cmdBuffer);
     void recordCommandBuffer(VkCommandBuffer cmdBuffer, UI32 index);
-
-    //-Pipelines-------------------------------------------------------------------------------------------------//  
-    void createDeferredPipelines(VkDescriptorSetLayout* descriptorSetLayout);
 
     //-Window/Input Callbacks------------------------------------------------------------------------------------//
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
@@ -129,10 +99,10 @@ public:
     // TODO: MAKE SCENE MORE COHERENT
     Model model;
 
-    Skybox skybox;
+    GLTFModel _gltfModel;
 
-    Buffer vertexBuffer;
-    Buffer indexBuffer;
+    Skybox _skybox;
+
     std::vector<Texture> textures;
 
     Light lights[1];
@@ -146,21 +116,11 @@ public:
     Plane floor;
     Cube cube;
 
-    // TODO: MOVE TO MATERIAL SYSTEM
-    VkPipelineLayout _fwdPipelineLayout;
-    VkPipeline       _fwdPipeline;
-
-    VkPipelineLayout _deferredPipelineLayout;
-    VkPipeline _compositionPipeline;
-    VkPipeline _offScreenPipeline;
-    VkPipeline _skyboxPipeline;
-
     VkDescriptorPool descriptorPool;
     VkDescriptorSetLayout descriptorSetLayout;
 
     std::vector<VkDescriptorSet> compositionDescriptorSets; 
     VkDescriptorSet offScreenDescriptorSet;
-    VkDescriptorSet skyboxDescriptorSet;
     VkDescriptorSet shadowMapDescriptorSet;
 
     // TODO: UPDATE BUFFER MANAGEMENT

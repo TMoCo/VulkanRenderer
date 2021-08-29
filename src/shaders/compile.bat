@@ -1,6 +1,8 @@
-C:/VulkanSDK/1.2.162.1/Bin/glslangValidator.exe -V -o offscreen.vert.spv offscreen.vert
+C:/VulkanSDK/1.2.162.1/Bin/glslangValidator.exe -V -o offscreen_pbr.vert.spv offscreen_pbr.vert
 
-C:/VulkanSDK/1.2.162.1/Bin/glslangValidator.exe -V -o offscreen.frag.spv offscreen.frag
+C:/VulkanSDK/1.2.162.1/Bin/glslangValidator.exe -V -o offscreen_pbr.frag.spv offscreen_pbr.frag
+
+C:/VulkanSDK/1.2.162.1/Bin/glslangValidator.exe -V -o offscreen_pbr_normal.frag.spv offscreen_pbr_normal.frag
 
 C:/VulkanSDK/1.2.162.1/Bin/glslangValidator.exe -V -o composition.vert.spv composition.vert
 

@@ -10,31 +10,31 @@
 #define TEXTURE_H
 
 #include <hpg/Buffer.h>
+#include <hpg/Renderer.h>
 #include <hpg/Image.h>
-#include <hpg/VulkanContext.h>
-
-#include <string> // string class
 
 #include <vulkan/vulkan_core.h>
 
 class Texture {
 public:
-    //-Initialisation and cleanup----------------------------------------//    
-    void createTexture(VulkanContext* pVkSetup, const VkCommandPool& commandPool, const ImageData& imageData);
-    void cleanupTexture();
+    // must be overriden by subsequent texture types
+    virtual bool uploadToGpu(const Renderer& renderer, const ImageData& imageData) = 0;
 
-private:
-    //-Texture sampler creation------------------------------------------//    
-    void createTextureSampler();
+    inline void cleanupTexture(VkDevice device) {
+        if (_onGpu) {
+            vkDestroySampler(device, _sampler, nullptr);
+            vkDestroyImageView(device, _imageView, nullptr);
+            vkDestroyImage(device, _image, nullptr);
+            vkFreeMemory(device, _memory, nullptr);
+        }
+    }
 
-public:
-    //-Members-----------------------------------------------------------//    
-    VulkanContext* vkSetup;
+    bool _onGpu;
 
-    Image    textureImage;
-    VkImageView    textureImageView = nullptr;
-
-    VkSampler textureSampler;
+    VkImage _image;
+    VkDeviceMemory _memory;
+    VkImageView _imageView;
+    VkSampler _sampler;
 };
 
 #endif // !TEXTURE_H

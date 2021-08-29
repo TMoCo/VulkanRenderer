@@ -6,18 +6,20 @@
 #define PLANE_H
 
 #include <common/types.h>
+#include <common/Vertex.h>
+
 #include <glm/glm.hpp>
 
 class Plane {
 public:
 	Plane(F32 x = 1.0f, F32 y = 1.0f) : extentX(x), extentY(y) {}
 
-	std::vector<Model::Vertex> getVertices() {
+	std::vector<Vertex> getVertices() {
 		return {
-			{ {-extentX, -2.0f, extentY}, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
-			{ {extentX, -2.0f, extentY}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f} },
-			{ {extentX, -2.0f, -extentY}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f} },
-			{ {-extentX, -2.0f, -extentY}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f} }
+			{ {-extentX, -2.0f, extentY, 1.0f}, { 0.0f, 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f } },
+			{ {extentX, -2.0f, extentY, 1.0f}, {0.0f, 1.0f, 0.0f, 1.0f }, {0.0f, 0.0f, 0.0f, 0.0f} },
+			{ {extentX, -2.0f, -extentY, 0.0f}, {0.0f, 1.0f, 0.0f, 1.0f }, {0.0f, 0.0f, 0.0f, 0.0f} },
+			{ {-extentX, -2.0f, -extentY, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f }, {0.0f, 0.0f, 0.0f, 0.0f} }
 		};
 	}
 
@@ -28,7 +30,7 @@ public:
 	// data describing a plane
 	F32 extentX;
 	F32 extentY;
-	std::vector<Model::Vertex> vertices;
+	std::vector<Vertex> vertices;
 	std::vector<UI32> indices;
 };
 

@@ -88,11 +88,7 @@ namespace utils {
     VkFormat findDepthFormat(const VkPhysicalDevice physicalDevice);
 
     //-Memory type-----------------------------------------------------------------------------------------------//
-    UI32 findMemoryType(const VkPhysicalDevice* physicalDevice, UI32 typeFilter, VkMemoryPropertyFlags properties);
-
-    //-Begin & end single use cmds-------------------------------------------------------------------------------//
-    VkCommandBuffer beginSingleTimeCommands(const VkDevice* device, const VkCommandPool& commandPool);
-    void endSingleTimeCommands(const VkDevice* device, const VkQueue* queue, const VkCommandBuffer* commandBuffer, const VkCommandPool* commandPool);
+    UI32 findMemoryType(VkPhysicalDevice physicalDevice, UI32 typeFilter, VkMemoryPropertyFlags properties);
 
     //-Texture operation info structs----------------------------------------------------------------------------//
     bool hasStencilComponent(VkFormat format);
