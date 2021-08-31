@@ -29,7 +29,7 @@
 
 void VulkanContext::init(GLFWwindow* theWindow) {
     // keep a reference to the glfw window for now
-    window = theWindow;
+    _window = theWindow;
 
     // start by creating a vulkan instance
     createInstance();
@@ -258,7 +258,7 @@ bool VulkanContext::checkValidationLayerSupport() {
 void VulkanContext::createSurface() {
     // takes simple arguments instead of structs
     // object is platform agnostic but creation is not, this is handled by the glfw method
-    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
+    if (glfwCreateWindowSurface(instance, _window, nullptr, &surface) != VK_SUCCESS) {
         throw std::runtime_error("failed to create window surface!");
     }
 }

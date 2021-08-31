@@ -10,7 +10,7 @@ void Renderer::init(GLFWwindow* window) {
     createCommandPool(&_commandPools[RENDER_CMD_POOL], VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
     createCommandPool(&_commandPools[GUI_CMD_POOL], VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
-    _swapChain.init(&_context);
+    _swapChain.create(_context);
 
     // gbuffer attachments
     createAttachment(_gbuffer[GBUFFER_POSITION], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
@@ -22,6 +22,8 @@ void Renderer::init(GLFWwindow* window) {
     // build render pass
     createRenderPass();
     createGuiRenderPass();
+
+    //
     createFramebuffers();
 
     // command buffers
@@ -35,7 +37,7 @@ void Renderer::init(GLFWwindow* window) {
     createCompositionPipeline();
 
     // create the uniform buffer for composition
-    _compositionUniforms = Buffer::createBuffer(_context, sizeof(CompositionUBO) * _swapChain.imageCount(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+    _compositionUniforms = Buffer::createBuffer(_context, sizeof(CompositionUBO) * _swapChain.imageCount(), 0x10, 
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     createCompositionDescriptorSets();
@@ -49,28 +51,39 @@ void Renderer::cleanup() {
     for (UI32 i = 0; i < _swapChain.imageCount(); i++) {
         vkDestroySemaphore(_context.device, _renderFinishedSemaphores[i], nullptr);
         vkDestroySemaphore(_context.device, _imageAvailableSemaphores[i], nullptr);
+        
         vkDestroyFence(_context.device, _inFlightFences[i], nullptr);
-    }
 
-    for (size_t i = 0; i < _swapChain.imageCount(); i++) {
         vkDestroyFramebuffer(_context.device, _framebuffers[i], nullptr);
         vkDestroyFramebuffer(_context.device, _guiFramebuffers[i], nullptr);
     }
 
-    for (auto& attachment : _gbuffer) {
-        attachment.cleanup(_context.device);
+    for (UI32 i = 0; i < GBUFFER_MAX_ENUM; i++) {
+        _gbuffer[i].cleanup(_context.device);
     }
 
-    vkDestroyDescriptorPool(_context.device, _descriptorPool, nullptr);
-    //vkDestroyDescriptorSetLayout(_context.device, descriptorSetLayout, nullptr);
+    // composition descriptors
+    _compositionUniforms.cleanupBufferData(_context.device);
+    vkFreeDescriptorSets(_context.device, _descriptorPool, _swapChain.imageCount(), _compositionDescriptorSets.data());
 
+    // descriptor set layouts used in application
+    for (UI32 i = 0; i < DESCRIPTOR_SET_LAYOUT_MAX_ENUM; i++) {
+        vkDestroyDescriptorSetLayout(_context.device, _descriptorSetLayouts[i], nullptr);
+    }
+    
+    vkDestroyDescriptorPool(_context.device, _descriptorPool, nullptr);
+
+    // composition pipeline
+    vkDestroyPipeline(_context.device, _compositionPipeline, nullptr);
+    vkDestroyPipelineLayout(_context.device, _compositionPipelineLayout, nullptr);
+    
     vkDestroySampler(_context.device, _colorSampler, nullptr);
 
     // destroy the render passes
     vkDestroyRenderPass(_context.device, _guiRenderPass, nullptr);
     vkDestroyRenderPass(_context.device, _renderPass, nullptr);
 
-    _swapChain.cleanup();
+    _swapChain.cleanup(_context.device);
 
     vkDestroyCommandPool(_context.device, _commandPools[RENDER_CMD_POOL], nullptr);
     vkDestroyCommandPool(_context.device, _commandPools[GUI_CMD_POOL], nullptr);
@@ -78,44 +91,68 @@ void Renderer::cleanup() {
     _context.cleanup();
 }
 
-void Renderer::recreateSwapchain() {
+void Renderer::resize() {
+    UI32 imageCount = _swapChain.imageCount();
+    {
+        // delete descriptor set
+        vkFreeDescriptorSets(_context.device, _descriptorPool,
+            static_cast<UI32>(_compositionDescriptorSets.size()), _compositionDescriptorSets.data());
 
-    vkFreeCommandBuffers(_context.device, _commandPools[RENDER_CMD_POOL],
-        static_cast<UI32>(_renderCommandBuffers.size()), _renderCommandBuffers.data());
-    vkFreeCommandBuffers(_context.device, _commandPools[GUI_CMD_POOL],
-        static_cast<UI32>(_guiCommandBuffers.size()), _guiCommandBuffers.data());
+        // delete framebuffers
+        for (UI32 i = 0; i < imageCount; i++) {
+            vkDestroyFramebuffer(_context.device, _framebuffers[i], nullptr);
+            vkDestroyFramebuffer(_context.device, _guiFramebuffers[i], nullptr);
+        }
 
-    // destroy previous swapchain and dependencies 
-    for (UI32 i = 0; i < _swapChain.imageCount(); i++) {
-        vkDestroyFramebuffer(_context.device, _framebuffers[i], nullptr);
-        vkDestroyFramebuffer(_context.device, _guiFramebuffers[i], nullptr);
+        // delete gbuffer
+        for (auto& attachment : _gbuffer) {
+            attachment.cleanup(_context.device);
+        }
+
+        _swapChain.cleanup(_context.device);
     }
 
-    vkDestroyRenderPass(_context.device, _guiRenderPass, nullptr);
-    vkDestroyRenderPass(_context.device, _renderPass, nullptr);
-
-    for (auto& attachment : _gbuffer) {
-        attachment.cleanup(_context.device);
-    }
+    bool hasNewImageCount = _swapChain.create(_context);
     
-    _swapChain.cleanup();
-
-    // recreate swapchain and dependencies
-
-    _swapChain.init(&_context);
-
     createAttachment(_gbuffer[GBUFFER_POSITION], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
     createAttachment(_gbuffer[GBUFFER_NORMAL], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
     createAttachment(_gbuffer[GBUFFER_ALBEDO], 0x94, _swapChain.extent(), VK_FORMAT_R8G8B8A8_SRGB);
-    createAttachment(_gbuffer[GBUFFER_AO_METALLIC_ROUGHNESS], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
+    createAttachment(_gbuffer[GBUFFER_AO_METALLIC_ROUGHNESS], 0x94, _swapChain.extent(), VK_FORMAT_R8G8B8A8_UNORM);
     createAttachment(_gbuffer[GBUFFER_DEPTH], 0xa4, _swapChain.extent(), utils::findDepthFormat(_context.physicalDevice));
-
-    createRenderPass();
-    createGuiRenderPass();
 
     createFramebuffers();
 
-    createCommandBuffers();
+    createCompositionDescriptorSets();
+    
+    // if create the swapchain == false, only need to recreate the framebuffers
+    if (hasNewImageCount) {
+        // destroy structures dependent on old image count
+        {
+            for (UI32 i = 0; i < imageCount; i++) {
+                vkDestroySemaphore(_context.device, _renderFinishedSemaphores[i], nullptr);
+                vkDestroySemaphore(_context.device, _imageAvailableSemaphores[i], nullptr);
+                vkDestroyFence(_context.device, _inFlightFences[i], nullptr);
+            }
+
+            vkFreeCommandBuffers(_context.device, _commandPools[RENDER_CMD_POOL], 
+                static_cast<UI32>(_renderCommandBuffers.size()), _renderCommandBuffers.data());
+            vkFreeCommandBuffers(_context.device, _commandPools[GUI_CMD_POOL],
+                static_cast<UI32>(_guiCommandBuffers.size()), _guiCommandBuffers.data());
+
+            vkDestroyRenderPass(_context.device, _guiRenderPass, nullptr);
+            vkDestroyRenderPass(_context.device, _renderPass, nullptr);
+        }
+        // recreate them
+        {
+            createRenderPass();
+            createGuiRenderPass();
+
+            createCommandBuffers();
+
+            createSyncObjects();
+        }
+    }
+
 }
 
 void Renderer::render() {
@@ -463,8 +500,8 @@ void Renderer::createCompositionPipeline() {
     vertShaderModule = Shader::createShaderModule(&_context, Shader::readFile("composition_debug.vert.spv"));
     fragShaderModule = Shader::createShaderModule(&_context, Shader::readFile("composition_debug.frag.spv"));
 #else
-    vertShaderModule = Shader::createShaderModule(&_context, Shader::readFile("composition.vert.spv"));
-    fragShaderModule = Shader::createShaderModule(&_context, Shader::readFile("composition.frag.spv"));
+    vertShaderModule = Shader::createShaderModule(&_context, Shader::readFile(kShaders.first));
+    fragShaderModule = Shader::createShaderModule(&_context, Shader::readFile(kShaders.second));
 #endif
 
     shaderStages[0] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");

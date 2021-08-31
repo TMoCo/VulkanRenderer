@@ -83,7 +83,7 @@ public:
 	bool uploadToGpu(Renderer& renderer);
 	void draw(VkCommandBuffer cmdBuffer);
 
-	void cleanupSkybox(VkDevice device);
+	void cleanup(VkDevice device);
 
 public:
 	//-Members-----------------------------------------------------------//
@@ -96,6 +96,7 @@ public:
 
 	Buffer _uniformBuffer;
 
+	VkDescriptorPool _descriptorPool;
 	VkDescriptorSet _descriptorSet;
 
 	VkPipelineLayout _pipelineLayout;

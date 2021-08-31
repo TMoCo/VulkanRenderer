@@ -117,12 +117,10 @@ void main()
 		// scene composition
 		case 0: {
 			// first check if in shadow
-			/*
-			if (shadow > 0.5) {
-				outColor = vec4(vec3(0.0f), 1.0f);			
-				break;
-			}
-			*/
+			//if (shadow > 0.5) {
+			//outColor = vec4(vec3(0.0f), 1.0f);			
+			//	break;
+			//}
 
 			// Rendering equation
 			
@@ -195,22 +193,14 @@ void main()
 					vec3 r = reflect(-toLight, normal.xyz);
 					float normalDotReflect = max(0.0f, dot(r, viewToFrag));
 					vec3 specular = ubo.lights[i].color * albedo.a * pow(normalDotReflect, 3.0f) * attenuation;
-
-					fragcolor += ( 1.0f - computeShadow(shadowCoord)) * (diffuse + specular);
+					
+					fragcolor += diffuse + specular;
 					*/
+
 				}
 			}
-			/*
-			vec3 color = ambient * albedo.rgb + Lo;
-			color = color / (color + vec3(1.0f));
-			//outColor = ( 1.0f - computeShadow(shadowCoord)) * vec4(Lo, 1.0f);
-			outColor = vec4(color, 1.0f);
-			color = pow(color, vec3(1.0f/2.0f));
-			*/
-			vec3 color = Lo;
-			color = color / (color + vec3(1.0f));
-			color = pow(color, vec3(1.0f/2.2f));
-			outColor = vec4(color, 1.0f);			
+			vec3 color = vec3(0.03) * albedo.rgb * ao + Lo; // multiply by some ambient term
+			outColor = vec4(pow (color / (color + vec3(1.0f)), vec3(1.0/2.2)), 1.0f);
 			break;
 		}
 		// position

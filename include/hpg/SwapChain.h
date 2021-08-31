@@ -20,34 +20,39 @@
 class SwapChain {
     friend class Renderer;
 public:
+    SwapChain() : 
+        _imageCount(0), 
+        _aspectRatio(0), 
+        _swapChain(nullptr), 
+        _extent({0, 0}), 
+        _surfaceFormat({ VK_FORMAT_UNDEFINED, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR }) {}
+
     //-Initialisation and cleanup--------------------------------------------------------------------------------//    
-    void init(VulkanContext* pContext);
-    void cleanup();
+    bool create(VulkanContext& context);
+    void cleanup(VkDevice device);
 
     inline VkSwapchainKHR* get() { return &_swapChain; }
     inline VkExtent2D extent() { return _extent; }
-    inline VkFormat format() { return _format; }
+    inline VkFormat format() { return _surfaceFormat.format; }
     inline UI32 imageCount() { return _imageCount; }
 
 private:
-    //-Swap chain creation helpers-------------------------------------------------------------------------------//    
-    void createSwapChain();
+    //-Swap chain creation helpers-------------------------------------------------------------------------------//
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
-    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+    VkExtent2D chooseSwapExtent(GLFWwindow* window, const VkSurfaceCapabilitiesKHR& capabilities);
 
 public:
-    //-Members---------------------------------------------------------------------------------------------------//    
-    VulkanContext* _context;
+    //-Members---------------------------------------------------------------------------------------------------//
+    UI32 _imageCount;
+    F32 _aspectRatio;
 
     VkSwapchainKHR _swapChain;
     
     VkExtent2D _extent;
-    VkFormat   _format;
+    VkSurfaceFormatKHR _surfaceFormat;
     
-    F32 _aspectRatio;
-    UI32 _imageCount;
-    std::vector<VkImage>     _images;
+    std::vector<VkImage> _images;
     std::vector<VkImageView> _imageViews;
 };
 

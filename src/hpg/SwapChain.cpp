@@ -17,92 +17,91 @@
 #include <stdexcept>
 
 
-void SwapChain::init(VulkanContext* pContext) {
-    // update the pointer to the setup data rather than passing as argument to functions
-    _context = pContext;
-    // create the swap chain
-    createSwapChain();
+bool SwapChain::create(VulkanContext& context) {
+    bool hasNewImageCount = false;
+    // query support
+    {
+        context.querySwapChainSupport();
 
-    // compute aspect ratio on creation
+        _surfaceFormat = chooseSwapSurfaceFormat(context._swapChainSupportDetails.formats);
+        _extent = chooseSwapExtent(context._window, context._swapChainSupportDetails.capabilities);
+
+        VkPresentModeKHR presentMode = chooseSwapPresentMode(context._swapChainSupportDetails.presentModes);
+
+        UI32 newImageCount = context._swapChainSupportDetails.capabilities.minImageCount + 1; // + 1 to avoid waiting
+        if (context._swapChainSupportDetails.capabilities.maxImageCount > 0 &&
+            newImageCount > context._swapChainSupportDetails.capabilities.maxImageCount) {
+            newImageCount = context._swapChainSupportDetails.capabilities.maxImageCount;
+        }
+
+        if (newImageCount != _imageCount) {
+            hasNewImageCount = true; // means we need to recreate a lot of vulkan structures
+        }
+        
+        _imageCount = newImageCount;
+        _images.resize(_imageCount);
+        _imageViews.resize(_imageCount);
+
+        VkSwapchainCreateInfoKHR createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+        createInfo.surface = context.surface; // glfw window
+        createInfo.minImageCount = _imageCount;
+        createInfo.imageFormat = _surfaceFormat.format;
+        createInfo.imageColorSpace = _surfaceFormat.colorSpace;
+        createInfo.imageExtent = _extent;
+        createInfo.imageArrayLayers = 1;
+        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+        // how to handle the sc images across multiple queue families (in case graphics queue is different to presentation queue)
+        utils::QueueFamilyIndices indices = utils::QueueFamilyIndices::findQueueFamilies(context.physicalDevice, 
+            context.surface);
+        uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+
+        if (indices.graphicsFamily != indices.presentFamily) {
+            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT; // image owned by one queue family, ownership must be transferred explicilty
+            createInfo.queueFamilyIndexCount = 2;
+            createInfo.pQueueFamilyIndices = queueFamilyIndices;
+        }
+        else {
+            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE; // images can be used accross queue families with no explicit transfer
+        }
+
+        // a certain transform to apply to the image
+        createInfo.preTransform = context._swapChainSupportDetails.capabilities.currentTransform;
+        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        createInfo.presentMode = presentMode; // determined earlier
+        createInfo.clipped = VK_TRUE; // ignore obscured pixels
+        createInfo.oldSwapchain = VK_NULL_HANDLE;
+
+        if (vkCreateSwapchainKHR(context.device, &createInfo, nullptr, &_swapChain) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create swap chain!");
+        }
+
+        // specify desired num of images, then get pointers
+        vkGetSwapchainImagesKHR(context.device, _swapChain, &_imageCount, nullptr);
+        vkGetSwapchainImagesKHR(context.device, _swapChain, &_imageCount, _images.data());
+    }
+
+    // compute aspect ratio
     _aspectRatio = (F32)_extent.width / (F32)_extent.height;
 
-    // then create the image views for the images created
-    _imageViews.resize(_images.size());
-    for (UI32 i = 0; i < _imageCount; i++) {
-        VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(_images[i],
-            VK_IMAGE_VIEW_TYPE_2D, _format, {}, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
-        _imageViews[i] = Image::createImageView(_context, imageViewCreateInfo);
+    {
+        // then create the image views for the images created
+        for (UI32 i = 0; i < _imageCount; i++) {
+            VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageViewCreateInfo(_images[i],
+                VK_IMAGE_VIEW_TYPE_2D, _surfaceFormat.format, {}, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+            _imageViews[i] = Image::createImageView(&context, imageViewCreateInfo);
+        }
     }
+
+    return hasNewImageCount;
 }
 
-void SwapChain::cleanup() {
-
-    // loop over the image views and destroy them. NB we don't destroy the images because they are implicilty created
-    // and destroyed by the swap chain
+void SwapChain::cleanup(VkDevice device) {
     for (UI32 i = 0; i < _imageCount; i++) {
-        vkDestroyImageView(_context->device, _imageViews[i], nullptr);
+        vkDestroyImageView(device, _imageViews[i], nullptr);
     }
-
-    // destroy the swap chain proper
-    vkDestroySwapchainKHR(_context->device, _swapChain, nullptr);
-}
-
-void SwapChain::createSwapChain() {
-    _context->querySwapChainSupport();
-
-    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(_context->_swapChainSupportDetails.formats);
-    VkPresentModeKHR presentMode     = chooseSwapPresentMode(_context->_swapChainSupportDetails.presentModes);
-    VkExtent2D newExtent             = chooseSwapExtent(_context->_swapChainSupportDetails.capabilities);
-
-    _imageCount = _context->_swapChainSupportDetails.capabilities.minImageCount + 1; // + 1 to avoid waiting
-    if (_context->_swapChainSupportDetails.capabilities.maxImageCount > 0 &&
-        _imageCount > _context->_swapChainSupportDetails.capabilities.maxImageCount) {
-        _imageCount = _context->_swapChainSupportDetails.capabilities.maxImageCount;
-    }
-
-    _images.resize(_imageCount);
-
-    VkSwapchainCreateInfoKHR createInfo{};
-    createInfo.sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface          = _context->surface; // glfw window
-    createInfo.minImageCount    = _imageCount;
-    createInfo.imageFormat      = surfaceFormat.format;
-    createInfo.imageColorSpace  = surfaceFormat.colorSpace;
-    createInfo.imageExtent      = newExtent;
-    createInfo.imageArrayLayers = 1;
-    createInfo.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-    // how to handle the sc images across multiple queue families (in case graphics queue is different to presentation queue)
-    utils::QueueFamilyIndices indices = utils::QueueFamilyIndices::findQueueFamilies(_context->physicalDevice, _context->surface);
-    uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
-
-    if (indices.graphicsFamily != indices.presentFamily) {
-        createInfo.imageSharingMode      = VK_SHARING_MODE_CONCURRENT; // image owned by one queue family, ownership must be transferred explicilty
-        createInfo.queueFamilyIndexCount = 2;
-        createInfo.pQueueFamilyIndices   = queueFamilyIndices;
-    }
-    else {
-        createInfo.imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE; // images can be used accross queue families with no explicit transfer
-    }
-
-    // a certain transform to apply to the image
-    createInfo.preTransform   = _context->_swapChainSupportDetails.capabilities.currentTransform;
-    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    createInfo.presentMode    = presentMode; // determined earlier
-    createInfo.clipped        = VK_TRUE; // ignore obscured pixels
-    createInfo.oldSwapchain   = VK_NULL_HANDLE;
-
-    if (vkCreateSwapchainKHR(_context->device, &createInfo, nullptr, &_swapChain) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create swap chain!");
-    }
-
-    // specify desired num of images, then get pointers
-    vkGetSwapchainImagesKHR(_context->device, _swapChain, &_imageCount, nullptr);
-    vkGetSwapchainImagesKHR(_context->device, _swapChain, &_imageCount, _images.data());
-
-    // save format and extent
-    _format = surfaceFormat.format;
-    _extent = newExtent;
+    vkDestroySwapchainKHR(device, _swapChain, nullptr);
 }
 
 VkSurfaceFormatKHR SwapChain::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
@@ -146,7 +145,7 @@ VkPresentModeKHR SwapChain::chooseSwapPresentMode(const std::vector<VkPresentMod
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-VkExtent2D SwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
+VkExtent2D SwapChain::chooseSwapExtent(GLFWwindow* window, const VkSurfaceCapabilitiesKHR& capabilities) {
     // swap extent is the resolution of the swap chain images, almost alwawys = to window res we're drawing pixels 
     // in match resolution by setting width and height in currentExtent member of VkSurfaceCapabilitiesKHR struct.
     /*************************************************************************************************************/
@@ -156,7 +155,7 @@ VkExtent2D SwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
     else {
         // get the dimensions of the window
         int width, height;
-        glfwGetFramebufferSize(_context->window, &width, &height);
+        glfwGetFramebufferSize(window, &width, &height);
 
         // prepare the struct with the height and width of the window
         VkExtent2D actualExtent = { static_cast<UI32>(width), static_cast<UI32>(height) };

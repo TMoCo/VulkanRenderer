@@ -73,6 +73,8 @@ bool Skybox::uploadToGpu(Renderer& renderer) {
         return _onGpu;
     }
 
+    _descriptorPool = renderer._descriptorPool;
+
     // pipeline layout 
     {
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
@@ -223,14 +225,22 @@ void Skybox::draw(VkCommandBuffer cmdBuffer) {
     vkCmdDraw(cmdBuffer, 36, 1, 0, 0);
 }
 
-void Skybox::cleanupSkybox(VkDevice device) {
-    _uniformBuffer.cleanupBufferData(device);
+void Skybox::cleanup(VkDevice device) {
+    // cleanup geometry
     _vertexBuffer.cleanupBufferData(device);
-    _cubeMap.cleanupTexture(device);
 
+    // cleanup uniforms
+    _cubeMap.cleanup(device);
+    _uniformBuffer.cleanupBufferData(device);
+
+    // free pixels stored on cpu
     if (_imageData.pixels._data) {
         free(_imageData.pixels._data);
     }
 
+    // destroy descriptor set and pipelines
+    vkFreeDescriptorSets(device, _descriptorPool, 1, &_descriptorSet);
+    vkDestroyPipeline(device, _pipeline, nullptr);
+    vkDestroyPipelineLayout(device, _pipelineLayout, nullptr);
 }
 

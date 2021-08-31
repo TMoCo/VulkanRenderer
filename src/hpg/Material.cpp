@@ -6,6 +6,9 @@
 #include <common/Print.h>
 
 void Material::createPipeline(Renderer& renderer, kDescriptorSetLayout type) {
+    // store descriptor pool
+    _descriptorPool = renderer._descriptorPool;
+
 	// create pipeline layout
     {
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipelineLayoutCreateInfo(1, 
@@ -91,4 +94,13 @@ void Material::createPipeline(Renderer& renderer, kDescriptorSetLayout type) {
         vkDestroyShaderModule(renderer._context.device, vertShaderModule, nullptr);
         vkDestroyShaderModule(renderer._context.device, fragShaderModule, nullptr);
     }
+}
+
+void Material::cleanup(VkDevice device) {
+    for (auto& texture : _textures) {
+        texture.cleanup(device);
+    }
+    vkFreeDescriptorSets(device, _descriptorPool, 1, &_descriptorSet);
+    vkDestroyPipeline(device, _pipeline, nullptr);
+    vkDestroyPipelineLayout(device, _pipelineLayout, nullptr);
 }

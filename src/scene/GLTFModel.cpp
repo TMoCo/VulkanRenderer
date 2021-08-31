@@ -85,6 +85,7 @@ bool GLTFModel::load(const std::string& path) {
     return onCpu;
 }
 
+// TODO: move material texture loading to material class (disable tinygltf load image and manage on own)
 bool GLTFModel::uploadToGpu(Renderer& renderer) {
     m_assert(onCpu, "model not loaded on CPU, cannot upload data to GPU!");
 
@@ -92,18 +93,21 @@ bool GLTFModel::uploadToGpu(Renderer& renderer) {
         return onGpu;
     }
 
-    // create vertex buffer
-    _vertexBuffer = Buffer::createDeviceLocalBuffer(&renderer._context, renderer._commandPools[RENDER_CMD_POOL],
-        BufferData{ (UC*)_vertices.data(), _vertices.size() * sizeof(Vertex) }, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    // model buffers
+    {
+        // create vertex buffer
+        _vertexBuffer = Buffer::createDeviceLocalBuffer(&renderer._context, renderer._commandPools[RENDER_CMD_POOL],
+            BufferData{ (UC*)_vertices.data(), _vertices.size() * sizeof(Vertex) }, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
-    // create index buffer
-    _indexBuffer = Buffer::createDeviceLocalBuffer(&renderer._context, renderer._commandPools[RENDER_CMD_POOL],
-        BufferData{ (UC*)_indices.data(), _indices.size() * sizeof(UI32) }, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+        // create index buffer
+        _indexBuffer = Buffer::createDeviceLocalBuffer(&renderer._context, renderer._commandPools[RENDER_CMD_POOL],
+            BufferData{ (UC*)_indices.data(), _indices.size() * sizeof(UI32) }, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
-    // create uniform buffer
-    _uniformBuffer = Buffer::createBuffer(renderer._context,
-        renderer._swapChain.imageCount() * sizeof(CompositionUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        // create uniform buffer
+        _uniformBuffer = Buffer::createBuffer(renderer._context,
+            renderer._swapChain.imageCount() * sizeof(CompositionUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    }
 
     _materials.resize(_model.materials.size());
     // generate materials (pipelines, descriptors)
@@ -126,7 +130,8 @@ bool GLTFModel::uploadToGpu(Renderer& renderer) {
 
         // create the descriptors and descriptors sets
         {
-            // check positive bits in mask for number of textures
+            // check set bits in mask for number of textures
+            // bit magic from: https://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
             textures = textures - ((textures >> 1) & 0x55555555);
             textures = (textures & 0x33333333) + ((textures >> 2) & 0x33333333);
             UI32 size = ((textures + (textures >> 4) & 0xF0F0F0F) * 0x1010101) >> 24;
@@ -213,7 +218,7 @@ bool GLTFModel::uploadToGpu(Renderer& renderer) {
                 texture = _model.images[material.normalTexture.index];
                 _materials[i]._textures[2].uploadToGpu(renderer, { 
                     { static_cast<UI32>(texture.width), static_cast<UI32>(texture.height), 1 },
-                    VK_FORMAT_R8G8B8A8_SNORM, { texture.image.data(), texture.image.size() } }); // normals in [-1, 1]
+                    VK_FORMAT_R8G8B8A8_UNORM, { texture.image.data(), texture.image.size() } });
 
                 // allocate descriptor set
                 VkDescriptorSetAllocateInfo allocInfo = vkinit::descriptorSetAllocInfo(renderer._descriptorPool,
@@ -271,10 +276,19 @@ bool GLTFModel::uploadToGpu(Renderer& renderer) {
     return onGpu;
 }
 
-bool GLTFModel::unloadFromGpu(Renderer& renderer) {
+bool GLTFModel::cleanup(Renderer& renderer) {
     if (onGpu) {
+        // destroy geometry 
         _indexBuffer.cleanupBufferData(renderer._context.device);
         _vertexBuffer.cleanupBufferData(renderer._context.device);
+
+        // destroy uniforms
+        _uniformBuffer.cleanupBufferData(renderer._context.device);
+
+        // destroy material (takes care of texture descriptors, sets, pipelines)
+        for (auto& material : _materials) {
+            material.cleanup(renderer._context.device);
+        }
         onGpu = false;
     }
     return onGpu;    

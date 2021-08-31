@@ -114,7 +114,7 @@ class Renderer {
 public:
 	void init(GLFWwindow* window);
 	void cleanup();
-	void recreateSwapchain();
+	void resize();
 	void render();
 
 	inline F32 aspectRatio() { return _swapChain._aspectRatio; }

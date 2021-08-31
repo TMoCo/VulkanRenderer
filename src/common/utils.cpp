@@ -108,47 +108,6 @@ namespace utils {
         );
     }
 
-    VkCommandBuffer beginSingleTimeCommands(const VkDevice* device, const VkCommandPool& commandPool) {
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandPool        = commandPool;
-        allocInfo.commandBufferCount = 1;
-
-        // allocate the command buffer
-        VkCommandBuffer commandBuffer;
-        vkAllocateCommandBuffers(*device, &allocInfo, &commandBuffer);
-
-        // set the struct for the command buffer
-        VkCommandBufferBeginInfo beginInfo{};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT; // command buffer usage 
-
-        // start recording the command buffer
-        vkBeginCommandBuffer(commandBuffer, &beginInfo);
-        return commandBuffer;
-    }
-
-    void endSingleTimeCommands(const VkDevice* device, const VkQueue* queue, const VkCommandBuffer* commandBuffer, const VkCommandPool* commandPool) {
-        // end recording
-        vkEndCommandBuffer(*commandBuffer);
-
-        // execute the command buffer by completing the submitinfo struct
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers    = commandBuffer;
-
-        // submit the queue for execution
-        vkQueueSubmit(*queue, 1, &submitInfo, VK_NULL_HANDLE);
-        // here we could use a fence to schedule multiple transfers simultaneously and wait for them to complete instead
-        // of executing all at the same time, alternatively use wait for the queue to execute
-        vkQueueWaitIdle(*queue);
-
-        // free the command buffer once the queue is no longer in use
-        vkFreeCommandBuffers(*device, *commandPool, 1, commandBuffer);
-    }
-
     bool hasStencilComponent(VkFormat format) {
         // depth formats with stencil components
         return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT; 

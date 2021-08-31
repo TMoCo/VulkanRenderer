@@ -17,10 +17,11 @@
 
 class Texture {
 public:
-    // must be overriden by subsequent texture types
+    Texture() : _onGpu(false), _image(nullptr), _memory(nullptr), _imageView(nullptr), _sampler(nullptr) {}
+
     virtual bool uploadToGpu(const Renderer& renderer, const ImageData& imageData) = 0;
 
-    inline void cleanupTexture(VkDevice device) {
+    inline void cleanup(VkDevice device) {
         if (_onGpu) {
             vkDestroySampler(device, _sampler, nullptr);
             vkDestroyImageView(device, _imageView, nullptr);

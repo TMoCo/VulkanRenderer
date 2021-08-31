@@ -16,11 +16,11 @@
 class Material {
 public:
 	void createPipeline(Renderer& renderer, kDescriptorSetLayout type);
-
-	std::string _name;
+	void cleanup(VkDevice device);
 
 	VkPipeline _pipeline;
 	VkPipelineLayout _pipelineLayout;
+	VkDescriptorPool _descriptorPool;
 	VkDescriptorSet _descriptorSet;
 
 	std::vector<Texture2D> _textures;

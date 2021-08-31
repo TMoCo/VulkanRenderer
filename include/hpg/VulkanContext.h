@@ -74,7 +74,7 @@ private:
 
 public:
     //-Members---------------------------------------------------------------------------------------------------//
-    GLFWwindow* window;
+    GLFWwindow* _window;
 
 	VkInstance instance;
     

@@ -28,7 +28,7 @@ struct BufferData {
 class Buffer {
 public:
     //-Buffer operation info structs--------------------------------------//
-    // TODO: Need refactoring...
+    // TODO: Refactor buffer creation and copying
     struct CreateInfo {
         VkDeviceSize          size       = 0;
         VkBufferUsageFlags    usage      = 0;
@@ -43,6 +43,7 @@ public:
     };
 
 public:
+    Buffer() : _vkBuffer(nullptr), _memory(nullptr) {}
 
     //-Buffer creation and cleanup-------------------------------------------------------------------------------//
     static Buffer createBuffer(const VulkanContext& context, UI64 size, VkBufferUsageFlags usage, 
@@ -60,8 +61,8 @@ public:
         const BufferData& buffer, VkBufferUsageFlagBits usage);
 
 public:
-    VkBuffer       _vkBuffer = nullptr;
-    VkDeviceMemory _memory = nullptr;
+    VkBuffer       _vkBuffer;
+    VkDeviceMemory _memory;
 };
 
 

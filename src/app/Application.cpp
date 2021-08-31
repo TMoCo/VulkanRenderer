@@ -86,6 +86,7 @@ void Application::recreateVulkanData() {
     static I32 width = 0, height = 0;
     glfwGetFramebufferSize(_window, &width, &height);
 
+    // hang the application while 
     while (width == 0 || height == 0) {
         glfwGetFramebufferSize(_window, &width, &height);
         glfwWaitEvents();
@@ -95,8 +96,7 @@ void Application::recreateVulkanData() {
 
 
     //shadowMap.cleanupShadowMap();
-
-    _renderer.recreateSwapchain();
+    _renderer.resize();
 
     // create new swap chain etc...
     //shadowMap.createShadowMap(&_renderer._context, &descriptorSetLayout, _renderer._commandPools[RENDER_CMD_POOL]);
@@ -580,9 +580,9 @@ void Application::cleanup() {
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
-    _skybox.cleanupSkybox(_renderer._context.device);
+    _skybox.cleanup(_renderer._context.device);
 
-    _gltfModel.unloadFromGpu(_renderer);
+    _gltfModel.cleanup(_renderer);
 
     _offScreenUniform.cleanupBufferData(_renderer._context.device);
     _compositionUniforms.cleanupBufferData(_renderer._context.device);

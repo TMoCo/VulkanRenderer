@@ -23,14 +23,14 @@ layout(location = 2) out vec4 fragTangent;
 layout(location = 3) out vec2 fragTexCoord;
 
 void main() {
-	// position
 	vec4 tmpPos = ubo.model * vec4(inPositionU.xyz, 1.0f);
-	fragPos     = tmpPos.xyz;
 	gl_Position = ubo.viewProj * tmpPos;
+	// position
+	fragPos     = tmpPos.xyz;
 	// normal
     fragNormal   = normalize(mat3(ubo.model) * inNormalV.xyz);
 	// tangent
-	fragTangent  = inTangent;
+	fragTangent  = vec4(normalize(ubo.model * inTangent).xyz, inTangent.w);
 	// texture uv
     fragTexCoord = vec2(inPositionU.w, inNormalV.w);
 }

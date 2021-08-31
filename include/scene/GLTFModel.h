@@ -43,10 +43,9 @@ public:
 	bool load(const std::string& path);
 
 	bool uploadToGpu(Renderer& renderer);
-	bool unloadFromGpu(Renderer& renderer);
+	bool cleanup(Renderer& renderer);
 
 	void draw(VkCommandBuffer buffer);
-
 
 	// model data from tinygltf model
 	tinygltf::Model _model;

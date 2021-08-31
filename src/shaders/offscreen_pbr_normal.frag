@@ -34,26 +34,19 @@ float linearize_Z(float z , float zNear , float zFar){
 
 void main() 
 {
-	// output to the gbuffer's color attachments
+	// 1: position
 	outPosition = vec4(fragPos, linearize_Z(gl_FragCoord.z, near, far) / far);
-	outAlbedo   = vec4(texture(albedoSampler, fragTexCoord).rgb, fragTexCoord.x);
-	outMetallicRoughness = vec4(texture(metallicRoughnessSampler, fragTexCoord).rgb, fragTexCoord.y);
 
-	// Calculate normal in tangent space
+	// 2: normal
 	// https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#tangent-space-definition
-	vec3 N = fragNormal;
-	vec3 T = fragTangent.xyz;
-	vec3 B = cross(N, T) * fragTangent.w; // bitangent
-	mat3 TBN = mat3(T, B, N);
-
-	// from normal map if provided
-	vec3 normal = normalize(TBN * texture(normalSampler, fragTexCoord).rgb);
-	// normal.y *= -1;
-	/*
+	mat3 TBN = mat3(fragNormal, cross(fragNormal, fragTangent.xyz) * fragTangent.w, fragNormal);
+	vec3 normal = normalize(TBN * ((texture(normalSampler, fragTexCoord).rgb) * 2.0f - vec3(1.0f)));
+	normal.y *= -1; // vulkan inverted y
 	outNormal   = vec4(normal, 1.0f);
 
-	normal = fragNormal;
-	normal.y *= -1;
-	outNormal   = vec4(normal, 1.0f);
-	*/
+	// 3: albedo
+	outAlbedo   = vec4(texture(albedoSampler, fragTexCoord).rgb, fragTexCoord.x);
+
+	// 4: ao metallic roughness
+	outMetallicRoughness = vec4(texture(metallicRoughnessSampler, fragTexCoord).rgb, fragTexCoord.y);
 }
