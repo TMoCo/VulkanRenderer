@@ -103,9 +103,9 @@ void main()
 	
 	//float shadow = 1.0f - computeShadow(shadowCoord);
 
-	float ao = metallicRoughness.x;
-	float metallic = metallicRoughness.z;
-	float roughness = metallicRoughness.y * metallicRoughness.y;
+	float ao = metallicRoughness.r;
+	float roughness = metallicRoughness.g * metallicRoughness.g;
+	float metallic = metallicRoughness.b;
 
 	// is fragment skybox? encoded in normal's w component
 	if (normal.w == 0.0f) {
@@ -166,7 +166,7 @@ void main()
 					vec3 F = fresnelSchlick(F0, max(dot(halfway, viewToFrag), 0.0f));
 
 					// normalised distribution function term
-					float NDF = normalisedDistributionTRGGX(normal.xyz, halfway, roughness * roughness);
+					float NDF = normalisedDistributionTRGGX(normal.xyz, halfway, roughness);
 
 					// geometry term
 					float G = geometrySmith(normal.xyz, viewToFrag, toLight, roughness); // multiply roughness here?

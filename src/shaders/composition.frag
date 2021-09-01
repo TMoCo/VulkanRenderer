@@ -133,13 +133,13 @@ void main()
 			// using the cook torrance specular BRDF
 
 			// fresnel term
-			vec3 F = fresnelSchlick( F0, abs(dot(toView, halfway)) );
+			vec3 F = fresnelSchlick( F0, max(dot(toView, halfway), 0.0f) );
 
 			// normalised distribution function term
-			float NDF = normalisedDistributionTRGGX( abs(dot(halfway, normal.xyz)), roughness );
+			float NDF = normalisedDistributionTRGGX( max(dot(halfway, normal.xyz), 0.0f), roughness );
 
-			float NoV = abs(dot(normal.xyz, toView));
-			float NoL = abs(dot(normal.xyz, toLight));
+			float NoV = max(dot(normal.xyz, toView), 0.0f);
+			float NoL = max(dot(normal.xyz, toLight), 0.0f);
 
 			// geometry term
 			//float G = geometryGGX(NoV, NoL, roughness); // multiply roughness here?
