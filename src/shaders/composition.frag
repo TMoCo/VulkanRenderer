@@ -48,32 +48,35 @@ float computeShadow(vec4 shadowCoord) {
 	return shadow; // if fragment depth greater than depth to occluder, then fragment is in shadow
 }
 
-// costheta = dot(n,h)
-vec3 fresnelSchlick(vec3 F0, float cosTheta) {
-	return F0 + (1.0f - F0) * pow(max(1.0f - cosTheta, 0.0f), 5.0f);
+vec3 fresnelSchlick(vec3 F0, float VoH) {
+	return F0 + (1.0f - F0) * pow(1.0f - VoH, 5.0f);
 }
 
 // normalised distribution function (Trowbridge-Reitz GGX)
-float normalisedDistributionTRGGX(float NdotH, float roughness) { 
+float normalisedDistributionTRGGX(float NoH, float roughness) { 
 	// for better results, square roughness before passing to function
-	float alpha2 = roughness * roughness; 
-	float denom = NdotH * NdotH * (alpha2 - 1.0f) + 1.0f;
-	denom = denom * denom * PI;
-	return alpha2 / max(denom, 0.001f);
+	float a2 = roughness * roughness; 
+	float denom = NoH * NoH * (a2 - 1.0f) + 1.0f;
+	return a2 / (PI * (denom * denom));
 }
 
-float geometrySchlickGGX(float NdotV, float roughness) {
-	roughness = roughness + 1.0f;
-	float k = roughness * roughness / 8.0f; // for direct lighting
-	// float k = roughness / 2.0f; // for image based lighting
+// GEOMETRY FUNCTIONS -------------------------------------------------------------------------------------------//
+// using smith's method
 
-	return NdotV / (NdotV * (1.0f - k) + k);
+float geometrySchlickGGX(float NdotV, float NdotL, float roughness) {
+	float k = roughness * 0.7978845608f; // k = a * sqrt(2/PI)
+	// float k = roughness * 0.5f; // for image based lighting
+	return NdotV * NdotL / ((NdotV - NdotV * k + k) * (NdotL - NdotL * k + k));
 }
 
-float geometrySmith(float NdotV, float NdotL, float roughness) {
-	return geometrySchlickGGX(NdotV, roughness) *  geometrySchlickGGX(NdotL, roughness);
+float geometryBeckmann(float NoV, float NoL, float roughness) {
+	return NoV * NoL / (roughness * sqrt(1.0f - NoV * NoV) * roughness * sqrt(1.0f - NoL * NoL));
 }
 
+float geometryGGX(float NoV, float NoL, float roughness) {
+	float a2 = roughness * roughness;
+	return NoV * NoL / ( NoV + sqrt( (NoV - NoV * a2) * NoV + a2 ) * (NoV + sqrt( (NoL - NoL * a2) * NoL + a2 )) ); 
+}
 
 void main() 
 {   
@@ -83,10 +86,8 @@ void main()
 	vec3 albedo = pow(subpassLoad(samplerAlbedo).rgb, vec3(2.2f));
 	vec4 aoMetallicRoughness = subpassLoad(samplerAOMetallicRoughness);
 	
-	//float shadow = (1.0f - computeShadow(ubo.depthMVP * vec4(fragPos.xyz, 1.0f)));
-
 	float ao = aoMetallicRoughness.r;
-	float roughness = aoMetallicRoughness.g;
+	float roughness = aoMetallicRoughness.g * aoMetallicRoughness.g;
 	float metallic = aoMetallicRoughness.b;
 
 	// is fragment skybox? encoded in normal's w component
@@ -97,17 +98,18 @@ void main()
 
 	// Rendering equation:			
 	// integrate over all incoming sources of light
-	// Lo += BRDF * radiance[i] * cosTheta
+	// Lo += BRDF * radiance[i] * NoL
 
 	// initialise Lo in rendering equation to 0 vector
 	vec3 Lo = vec3(0.0f);
 
 	// for dieletcric surfaces, surface reflection is 4%
-	vec3 F0 = vec3(0.04f);
-	F0 = mix(F0, albedo, metallic);
+	vec3 dielectricSpecular = vec3(0.04f);
+
+	vec3 F0 = mix(dielectricSpecular, albedo, metallic);
 
 	// direction to frag from viewer
-	vec3 viewToFrag = normalize(ubo.viewPos.xyz - fragPos.xyz);
+	vec3 toView = normalize(ubo.viewPos.xyz - fragPos.xyz);
 
 	for (int i = 0; i < 1; i++) {
 		// vector to light
@@ -118,42 +120,38 @@ void main()
 		// test if fragment is in light's radius
 		if (distToLight < ubo.lights[i].radius) {
 
-			// direction from fragment to light
+			// normalize toLight
 			toLight = toLight / distToLight;
 
 			// halfway direction
-			vec3 halfway = normalize(viewToFrag + toLight);
+			vec3 halfway = normalize(toView + toLight);
 
 			// compute radiance -------------------------------------------------------------
-					
-			// light attenuation
-			float attenuation = 1.0f / (distToLight * distToLight);
-
-			vec3 radiance = ubo.lights[i].color * attenuation;
+			vec3 radiance = ubo.lights[i].color / (distToLight * distToLight);
 
 			// compute BRDF -----------------------------------------------------------------
-			// using the cook torrance specular BRDF 
+			// using the cook torrance specular BRDF
 
 			// fresnel term
-			vec3 F = fresnelSchlick(F0, clamp(dot(halfway, viewToFrag), 0.0f, 1.0f));
+			vec3 F = fresnelSchlick( F0, abs(dot(toView, halfway)) );
 
 			// normalised distribution function term
-			float NDF = normalisedDistributionTRGGX(max(dot(halfway, normal.xyz), 0.0f), roughness * roughness);
+			float NDF = normalisedDistributionTRGGX( abs(dot(halfway, normal.xyz)), roughness );
 
-			float NdotV = max(dot(normal.xyz, viewToFrag), 0.0f);
-			float NdotL = max(dot(normal.xyz, toLight), 0.0f);
+			float NoV = abs(dot(normal.xyz, toView));
+			float NoL = abs(dot(normal.xyz, toLight));
 
 			// geometry term
-			float G = geometrySmith(NdotV, NdotL, roughness); // multiply roughness here?
+			//float G = geometryGGX(NoV, NoL, roughness); // multiply roughness here?
+			//float G = geometryBeckmann(NoV, NoL, roughness * roughness);
+			float G = geometrySchlickGGX(NoV, NoL, roughness);
 
 			// divide by normalisation factor
-			vec3 specular = F * NDF * G / max(4.0f * NdotV * NdotL, 0.001f);
-
-			// fresnel value directly corresponds to the specularity of the surface
-			vec3 Kd = (vec3(1.0f) - F) * (1.0f - metallic); // nullify diffuse component for metallic surfaces
+			vec3 specular = F * NDF * G / max(4.0f * NoV * NoL, 0.001f);
+			vec3 diffuse  = (vec3(1.0f) - F) * mix(albedo * (1.0f - dielectricSpecular), vec3(0.0f), metallic) / PI;
 
 			// add contribution of the light
-			Lo += (Kd * albedo / PI + specular) * radiance * NdotL;
+			Lo += (diffuse + specular) * radiance * NoL;
 		}
 	}
 

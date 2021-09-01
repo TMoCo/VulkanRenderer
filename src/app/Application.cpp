@@ -432,8 +432,8 @@ void Application::setGUI() {
     ImGui::SliderFloat("scale", &scale, 1.0f, 50.0f);
 #ifndef NDEBUG
     ImGui::BulletText("Visualize:");
-    const char* attachments[13] = { "composition", "position", "normal", "albedo", "depth", "shadow map", 
-        "shadow NDC", "camera NDC", "shadow depth", "roughness", "metallic", "occlusion", "uv" };
+    const char* attachments[14] = { "composition", "position", "normal", "albedo", "depth", "shadow map", 
+        "shadow NDC", "camera NDC", "shadow depth", "roughness", "metallic", "occlusion", "uv", "ao metallic roughness" };
     ImGui::Combo("", &attachmentNum, attachments, StaticArraySize(attachments));
 #endif // !NDEBUG
     ImGui::PopItemWidth();

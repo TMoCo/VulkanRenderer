@@ -16,7 +16,7 @@ void Renderer::init(GLFWwindow* window) {
     createAttachment(_gbuffer[GBUFFER_POSITION], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
     createAttachment(_gbuffer[GBUFFER_NORMAL], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
     createAttachment(_gbuffer[GBUFFER_ALBEDO], 0x94, _swapChain.extent(), VK_FORMAT_R8G8B8A8_SRGB);
-    createAttachment(_gbuffer[GBUFFER_AO_METALLIC_ROUGHNESS], 0x94, _swapChain.extent(), VK_FORMAT_R8G8B8A8_UNORM);
+    createAttachment(_gbuffer[GBUFFER_AO_METALLIC_ROUGHNESS], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
     createAttachment(_gbuffer[GBUFFER_DEPTH], 0xa4, _swapChain.extent(), utils::findDepthFormat(_context.physicalDevice));
 
     // build render pass
@@ -112,47 +112,49 @@ void Renderer::resize() {
         _swapChain.cleanup(_context.device);
     }
 
+    // recreate swapchain
     bool hasNewImageCount = _swapChain.create(_context);
     
-    createAttachment(_gbuffer[GBUFFER_POSITION], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
-    createAttachment(_gbuffer[GBUFFER_NORMAL], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
-    createAttachment(_gbuffer[GBUFFER_ALBEDO], 0x94, _swapChain.extent(), VK_FORMAT_R8G8B8A8_SRGB);
-    createAttachment(_gbuffer[GBUFFER_AO_METALLIC_ROUGHNESS], 0x94, _swapChain.extent(), VK_FORMAT_R8G8B8A8_UNORM);
-    createAttachment(_gbuffer[GBUFFER_DEPTH], 0xa4, _swapChain.extent(), utils::findDepthFormat(_context.physicalDevice));
+    {
+        createAttachment(_gbuffer[GBUFFER_POSITION], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
+        createAttachment(_gbuffer[GBUFFER_NORMAL], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
+        createAttachment(_gbuffer[GBUFFER_ALBEDO], 0x94, _swapChain.extent(), VK_FORMAT_R8G8B8A8_SRGB);
+        createAttachment(_gbuffer[GBUFFER_AO_METALLIC_ROUGHNESS], 0x94, _swapChain.extent(), VK_FORMAT_R16G16B16A16_SFLOAT);
+        createAttachment(_gbuffer[GBUFFER_DEPTH], 0xa4, _swapChain.extent(), utils::findDepthFormat(_context.physicalDevice));
 
-    createFramebuffers();
+        createFramebuffers();
 
-    createCompositionDescriptorSets();
+        createCompositionDescriptorSets();
     
-    // if create the swapchain == false, only need to recreate the framebuffers
-    if (hasNewImageCount) {
-        // destroy structures dependent on old image count
-        {
-            for (UI32 i = 0; i < imageCount; i++) {
-                vkDestroySemaphore(_context.device, _renderFinishedSemaphores[i], nullptr);
-                vkDestroySemaphore(_context.device, _imageAvailableSemaphores[i], nullptr);
-                vkDestroyFence(_context.device, _inFlightFences[i], nullptr);
+        // if create the swapchain == false, only need to recreate the framebuffers
+        if (hasNewImageCount) {
+            // destroy structures dependent on old image count
+            {
+                for (UI32 i = 0; i < imageCount; i++) {
+                    vkDestroySemaphore(_context.device, _renderFinishedSemaphores[i], nullptr);
+                    vkDestroySemaphore(_context.device, _imageAvailableSemaphores[i], nullptr);
+                    vkDestroyFence(_context.device, _inFlightFences[i], nullptr);
+                }
+
+                vkFreeCommandBuffers(_context.device, _commandPools[RENDER_CMD_POOL], 
+                    static_cast<UI32>(_renderCommandBuffers.size()), _renderCommandBuffers.data());
+                vkFreeCommandBuffers(_context.device, _commandPools[GUI_CMD_POOL],
+                    static_cast<UI32>(_guiCommandBuffers.size()), _guiCommandBuffers.data());
+
+                vkDestroyRenderPass(_context.device, _guiRenderPass, nullptr);
+                vkDestroyRenderPass(_context.device, _renderPass, nullptr);
             }
+            // recreate them
+            {
+                createRenderPass();
+                createGuiRenderPass();
 
-            vkFreeCommandBuffers(_context.device, _commandPools[RENDER_CMD_POOL], 
-                static_cast<UI32>(_renderCommandBuffers.size()), _renderCommandBuffers.data());
-            vkFreeCommandBuffers(_context.device, _commandPools[GUI_CMD_POOL],
-                static_cast<UI32>(_guiCommandBuffers.size()), _guiCommandBuffers.data());
+                createCommandBuffers();
 
-            vkDestroyRenderPass(_context.device, _guiRenderPass, nullptr);
-            vkDestroyRenderPass(_context.device, _renderPass, nullptr);
-        }
-        // recreate them
-        {
-            createRenderPass();
-            createGuiRenderPass();
-
-            createCommandBuffers();
-
-            createSyncObjects();
+                createSyncObjects();
+            }
         }
     }
-
 }
 
 void Renderer::render() {
@@ -500,8 +502,10 @@ void Renderer::createCompositionPipeline() {
     vertShaderModule = Shader::createShaderModule(&_context, Shader::readFile("composition_debug.vert.spv"));
     fragShaderModule = Shader::createShaderModule(&_context, Shader::readFile("composition_debug.frag.spv"));
 #else
-    vertShaderModule = Shader::createShaderModule(&_context, Shader::readFile(kShaders.first));
-    fragShaderModule = Shader::createShaderModule(&_context, Shader::readFile(kShaders.second));
+    vertShaderModule = Shader::createShaderModule(&_context, 
+        Shader::readFile(kShaders[COMPOSITION_DESCRIPTOR_LAYOUT].first));
+    fragShaderModule = Shader::createShaderModule(&_context, 
+        Shader::readFile(kShaders[COMPOSITION_DESCRIPTOR_LAYOUT].second));
 #endif
 
     shaderStages[0] = vkinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");

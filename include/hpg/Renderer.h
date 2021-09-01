@@ -81,6 +81,7 @@ typedef enum {
 	OFFSCREEN_DEFAULT_DESCRIPTOR_LAYOUT,
 	OFFSCREEN_PBR_DESCRIPTOR_LAYOUT,
 	OFFSCREEN_PBR_NORMAL_DESCRIPTOR_LAYOUT,
+	OFFSCREEN_PBR_NORMAL_EMISSIVE_DESCRIPTOR_LAYOUT,
 	OFFSCREEN_SKYBOX_DESCRIPTOR_LAYOUT,
 	OFFSCREEN_SHADOWMAP_DESCRIPTOR_LAYOUT,
 	COMPOSITION_DESCRIPTOR_LAYOUT,
@@ -90,6 +91,7 @@ typedef enum {
 constexpr std::array<std::pair<const char*, const char*>, DESCRIPTOR_SET_LAYOUT_MAX_ENUM> kShaders = {
 	std::pair{ "offscreen_default.vert.spv", "offscreen_default.frag.spv" },
 	std::pair{ "offscreen_pbr.vert.spv", "offscreen_pbr.frag.spv" },
+	std::pair{ "offscreen_pbr.vert.spv", "offscreen_pbr_normal.frag.spv" },
 	std::pair{ "offscreen_pbr.vert.spv", "offscreen_pbr_normal.frag.spv" },
 	std::pair{ "skybox.vert.spv", "skybox.frag.spv" },
 	std::pair{ "shadowmap.vert.spv", "shadowmap.frag.spv" },

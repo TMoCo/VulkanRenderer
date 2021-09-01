@@ -97,19 +97,19 @@ void main()
 	vec4 cameraCoord = ubo.cameraMVP * vec4(fragPos.xyz, 1.0f); // fragment position in camera space
 	vec4 shadowCoord = ubo.depthMVP * vec4(fragPos.xyz, 1.0f); // fragment position in light's space
 	vec4 normal = subpassLoad(samplerNormal); // already normalised
-	vec4 albedo = subpassLoad(samplerAlbedo);
+	vec3 albedo = pow(subpassLoad(samplerAlbedo).rgb, vec3(2.2f));
 	vec4 metallicRoughness = subpassLoad(samplerMetallicRoughness);
-	vec2 uv = vec2(albedo.w, metallicRoughness.w);
+	vec2 uv = vec2(subpassLoad(samplerAlbedo).a, metallicRoughness.w);
 	
 	//float shadow = 1.0f - computeShadow(shadowCoord);
 
-	float ao = metallicRoughness.r;
-	float metallic = metallicRoughness.b;
-	float roughness = metallicRoughness.g;
+	float ao = metallicRoughness.x;
+	float metallic = metallicRoughness.z;
+	float roughness = metallicRoughness.y * metallicRoughness.y;
 
 	// is fragment skybox? encoded in normal's w component
 	if (normal.w == 0.0f) {
-		outColor = vec4(albedo.rgb, 1.0f);
+		outColor = vec4(albedo, 1.0f);
 		return;
 	}
 
@@ -132,7 +132,7 @@ void main()
 
 			// for dieletcric surfaces, surface reflection is 4%
 			vec3 F0 = vec3(0.04f);
-			F0 = mix(F0, albedo.rgb, metallic);
+			F0 = mix(F0, albedo, metallic);
 
 			// direction to frag from viewer
 			vec3 viewToFrag = normalize(ubo.viewPos.xyz - fragPos.xyz);
@@ -182,7 +182,7 @@ void main()
 					Kd *= 1.0f - metallic; // nullify diffuse component for metallic surfaces
 
 					// add contribution of the light
-					Lo += (Kd * albedo.rgb / PI + specular) * radiance * max(dot(normal.xyz, toLight), 0.0f);
+					Lo += (Kd * albedo / PI + specular) * radiance * max(dot(normal.xyz, toLight), 0.0f);
 
 					/*
 					// diffuse
@@ -199,7 +199,7 @@ void main()
 
 				}
 			}
-			vec3 color = vec3(0.03) * albedo.rgb * ao + Lo; // multiply by some ambient term
+			vec3 color = vec3(0.03) * albedo * ao + Lo; // multiply by some ambient term
 			outColor = vec4(pow (color / (color + vec3(1.0f)), vec3(1.0/2.2)), 1.0f);
 			break;
 		}
@@ -213,7 +213,7 @@ void main()
 			break;
 		// albedo
 		case 3:
-			outColor = vec4(albedo.rgb, 1.0f);
+			outColor = vec4(albedo, 1.0f);
 			break;
 		// depth
 		case 4:
@@ -240,18 +240,21 @@ void main()
 			break;
 		// roughness
 		case 9:
-			outColor = vec4(vec3(roughness), 1.0f); 
+			outColor = vec4(0.0f, metallicRoughness.g, 0.0f, 1.0f); 
 			break;
 		// metallic
 		case 10:
-			outColor = vec4(vec3(metallic), 1.0f); 
+			outColor = vec4(0.0f, 0.0f, metallicRoughness.b, 1.0f); 
 			break;
 		// occlusion
 		case 11:
-			outColor = vec4(vec3(ao), 1.0f); 
+			outColor = vec4(metallicRoughness.r, 0.0f, 0.0f, 1.0f); 
 			break;
 		case 12:
 			outColor = vec4(uv, 0.0f, 1.0f);
+			break;
+		case 13:
+			outColor = vec4(metallicRoughness.rgb, 1.0f);
 			break;
 	}
 }

@@ -26,7 +26,7 @@ const float near = 0.1;
 // compute linear depth
 // https://learnopengl.com/Advanced-OpenGL/Depth-testing
 float linearize_Z(float z , float zNear , float zFar){
-	return (2 * zNear * zFar) / (zFar + zNear - (z * 2.0f  - 1.0f) * (zFar -zNear)) ;
+	return (2.0f * zNear * zFar) / (zFar + zNear - (z * 2.0f  - 1.0f) * (zFar -zNear)) ;
 }
 
 
@@ -39,14 +39,4 @@ void main()
 	outNormal   = vec4(normal, 1.0f);
 	outAlbedo   = vec4(texture(albedoSampler, fragTexCoord).rgb, fragTexCoord.x);
 	outMetallicRoughness = vec4(texture(metallicRoughnessSampler, fragTexCoord).rgb, fragTexCoord.y);
-
-	// Calculate normal in tangent space
-	// https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#tangent-space-definition
-	vec3 N = fragNormal;
-	vec3 T = fragTangent.xyz;
-	vec3 B = cross(N, T) * fragTangent.w; // bitangent
-	mat3 TBN = mat3(T, B, N);
-
-	// from normal map if provided
-	// vec3 outNormal = TBN * normalize(texture(samplerNormalMap, inUV).xyz * 2.0 - vec3(1.0));
 }

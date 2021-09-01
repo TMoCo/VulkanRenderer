@@ -38,10 +38,10 @@ bool GLTFModel::load(const std::string& path) {
 
                 // get the buffer views for each attribute
                 std::vector<tinygltf::BufferView*> bufferViews = {
-                    &_model.bufferViews[primitive.attributes["POSITION"]],
-                    &_model.bufferViews[primitive.attributes["NORMAL"]],                  
-                    &_model.bufferViews[primitive.attributes["TANGENT"]],
-                    &_model.bufferViews[primitive.attributes["TEXCOORD_0"]]
+                    &_model.bufferViews[accessor.bufferView],
+                    &_model.bufferViews[_model.accessors[primitive.attributes["NORMAL"]].bufferView],
+                    &_model.bufferViews[_model.accessors[primitive.attributes["TANGENT"]].bufferView],
+                    &_model.bufferViews[_model.accessors[primitive.attributes["TEXCOORD_0"]].bufferView]
                 };
 
                 UC* pData;
@@ -160,7 +160,7 @@ bool GLTFModel::uploadToGpu(Renderer& renderer) {
                     { static_cast<UI32>(texture.width), static_cast<UI32>(texture.height), 1 },
                     VK_FORMAT_R8G8B8A8_SRGB, { texture.image.data(), texture.image.size() } });
 
-                texture = _model.images[material.pbrMetallicRoughness.baseColorTexture.index];
+                texture = _model.images[material.pbrMetallicRoughness.metallicRoughnessTexture.index];
                 _materials[i]._textures[1].uploadToGpu(renderer, { 
                     { static_cast<UI32>(texture.width), static_cast<UI32>(texture.height), 1},
                     VK_FORMAT_R8G8B8A8_UNORM, { texture.image.data(), texture.image.size() } });
@@ -210,7 +210,7 @@ bool GLTFModel::uploadToGpu(Renderer& renderer) {
                     { static_cast<UI32>(texture.width), static_cast<UI32>(texture.height), 1 },
                     VK_FORMAT_R8G8B8A8_SRGB, { texture.image.data(), texture.image.size() } });
 
-                texture = _model.images[material.pbrMetallicRoughness.baseColorTexture.index];
+                texture = _model.images[material.pbrMetallicRoughness.metallicRoughnessTexture.index];
                 _materials[i]._textures[1].uploadToGpu(renderer, { 
                     { static_cast<UI32>(texture.width), static_cast<UI32>(texture.height), 1 },
                     VK_FORMAT_R8G8B8A8_UNORM, { texture.image.data(), texture.image.size() } });
@@ -224,7 +224,8 @@ bool GLTFModel::uploadToGpu(Renderer& renderer) {
                 VkDescriptorSetAllocateInfo allocInfo = vkinit::descriptorSetAllocInfo(renderer._descriptorPool,
                     1, &renderer._descriptorSetLayouts[OFFSCREEN_PBR_NORMAL_DESCRIPTOR_LAYOUT]);
 
-                if (vkAllocateDescriptorSets(renderer._context.device, &allocInfo, &_materials[i]._descriptorSet) != VK_SUCCESS) {
+                if (vkAllocateDescriptorSets(renderer._context.device, &allocInfo, &_materials[i]._descriptorSet) 
+                    != VK_SUCCESS) {
                     throw std::runtime_error("failed to allocate descriptor sets!");
                 }
 
@@ -260,6 +261,70 @@ bool GLTFModel::uploadToGpu(Renderer& renderer) {
                     vkinit::writeDescriptorSet(_materials[i]._descriptorSet, 2, 
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &aoMetallicRoughnessImageInfo),
                     vkinit::writeDescriptorSet(_materials[i]._descriptorSet, 3, 
+                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &normalMapImageInfo)
+                };
+
+                vkUpdateDescriptorSets(renderer._context.device, 4, writeDescriptorSets, 0, nullptr);
+                break;
+            }
+            case OFFSCREEN_PBR_NORMAL_EMISSIVE_DESCRIPTOR_LAYOUT: {
+                // upload textures to the gpu
+                auto& texture = _model.images[material.pbrMetallicRoughness.baseColorTexture.index];
+                _materials[i]._textures[0].uploadToGpu(renderer, {
+                    { static_cast<UI32>(texture.width), static_cast<UI32>(texture.height), 1 },
+                    VK_FORMAT_R8G8B8A8_SRGB, { texture.image.data(), texture.image.size() } });
+
+                texture = _model.images[material.pbrMetallicRoughness.metallicRoughnessTexture.index];
+                _materials[i]._textures[1].uploadToGpu(renderer, {
+                    { static_cast<UI32>(texture.width), static_cast<UI32>(texture.height), 1 },
+                    VK_FORMAT_R8G8B8A8_UNORM, { texture.image.data(), texture.image.size() } });
+
+                texture = _model.images[material.normalTexture.index];
+                _materials[i]._textures[2].uploadToGpu(renderer, {
+                    { static_cast<UI32>(texture.width), static_cast<UI32>(texture.height), 1 },
+                    VK_FORMAT_R8G8B8A8_UNORM, { texture.image.data(), texture.image.size() } });
+
+                // allocate descriptor set
+                VkDescriptorSetAllocateInfo allocInfo = vkinit::descriptorSetAllocInfo(renderer._descriptorPool,
+                    1, &renderer._descriptorSetLayouts[OFFSCREEN_PBR_NORMAL_DESCRIPTOR_LAYOUT]);
+
+                if (vkAllocateDescriptorSets(renderer._context.device, &allocInfo, &_materials[i]._descriptorSet)
+                    != VK_SUCCESS) {
+                    throw std::runtime_error("failed to allocate descriptor sets!");
+                }
+
+                // 0: offscreen uniform buffer
+                VkDescriptorBufferInfo offScreenUboInf{};
+                offScreenUboInf.buffer = _uniformBuffer._vkBuffer;
+                offScreenUboInf.range = sizeof(OffscreenUBO);
+
+                // 1: albedo sampler
+                VkDescriptorImageInfo albedoImageInfo{};
+                albedoImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                albedoImageInfo.imageView = _materials[i]._textures[0]._imageView;
+                albedoImageInfo.sampler = _materials[i]._textures[0]._sampler;
+
+                // 2: ambient occlusion metallic roughness
+                VkDescriptorImageInfo aoMetallicRoughnessImageInfo{};
+                aoMetallicRoughnessImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                aoMetallicRoughnessImageInfo.imageView = _materials[i]._textures[1]._imageView;
+                aoMetallicRoughnessImageInfo.sampler = _materials[i]._textures[1]._sampler;
+
+                // 3: normal map
+                VkDescriptorImageInfo normalMapImageInfo{};
+                normalMapImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                normalMapImageInfo.imageView = _materials[i]._textures[2]._imageView;
+                normalMapImageInfo.sampler = _materials[i]._textures[2]._sampler;
+
+                // create descriptor set
+                VkWriteDescriptorSet writeDescriptorSets[4] = {
+                    vkinit::writeDescriptorSet(_materials[i]._descriptorSet, 0,
+                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &offScreenUboInf),
+                    vkinit::writeDescriptorSet(_materials[i]._descriptorSet, 1,
+                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &albedoImageInfo),
+                    vkinit::writeDescriptorSet(_materials[i]._descriptorSet, 2,
+                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &aoMetallicRoughnessImageInfo),
+                    vkinit::writeDescriptorSet(_materials[i]._descriptorSet, 3,
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &normalMapImageInfo)
                 };
 
