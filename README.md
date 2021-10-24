@@ -21,7 +21,7 @@ Building on past projects, my aim here is to create an application for rendering
 - [ ] basic material system (revise descriptor sets and pipelines)
 - [ ] Screen space ambient occlusion
 
-This is a long term project (like a lot of my projects). 
+This is a long term project (like a lot of my projects). When I finish an important milestone on my other projects, I will return to this one.
 Conceptually, these features are not difficult to understand but adapting them to Vulkan adds some overhead to development time. 
 
 ## Libraries I am using:
